@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kesh Monitoring — Live Status</title>
+<meta name="description" content="Real-time uptime and latency monitoring by Kesh · Penang">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+<style>
+/* ═══════════════════════════════════════════
+   KESH MONITORING v5 — Traffic-Light Edition
+   Built by Kesh · Neo Penang
+   ═══════════════════════════════════════════ */
+
+:root, [data-theme="light"] {
+  --bg: #f0f2f5; --sf: #ffffff; --sf2: #f7f8fa; --sf3: #eef0f4;
+  --bd: #e0e3e8; --bd2: #cdd1d8;
+  --tx: #111827; --t2: #4b5563; --t3: #6b7280; --mt: #9ca3af;
+  --green: #059669; --green-bg: #d1fae5; --green-glow: rgba(5,150,105,.35);
+  --amber: #d97706; --amber-bg: #fef3c7; --amber-glow: rgba(217,119,6,.35);
+  --red: #dc2626; --red-bg: #fee2e2; --red-glow: rgba(220,38,38,.4);
+  --blue: #2563eb; --blue-bg: #dbeafe;
+  --critical-glow: 0 0 8px rgba(220,38,38,.5), 0 0 20px rgba(220,38,38,.25);
+  --sh: 0 1px 3px rgba(0,0,0,.06); --sh2: 0 4px 16px rgba(0,0,0,.08);
+  --mono: 'SF Mono','Cascadia Code','Fira Code',Consolas,monospace;
+  --sans: 'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --radius: 14px; --radius-sm: 10px;
+}
+[data-theme="dark"] {
+  --bg: #0a0f1a; --sf: #111827; --sf2: #1a2236; --sf3: #1f2b42;
+  --bd: #1f2b42; --bd2: #2a3a5a;
+  --tx: #e2e8f0; --t2: #94a3b8; --t3: #64748b; --mt: #475569;
+  --green: #34d399; --green-bg: #064e3b; --green-glow: rgba(52,211,153,.4);
+  --amber: #fbbf24; --amber-bg: #422006; --amber-glow: rgba(251,191,36,.4);
+  --red: #f87171; --red-bg: #450a0a; --red-glow: rgba(248,113,113,.5);
+  --blue: #60a5fa; --blue-bg: #172554;
+  --critical-glow: 0 0 10px rgba(248,113,113,.6), 0 0 25px rgba(248,113,113,.3);
+  --sh: 0 1px 3px rgba(0,0,0,.3); --sh2: 0 4px 16px rgba(0,0,0,.4);
+}
+
+/* ── Animations ── */
+@keyframes pulse-amber {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .7; }
+}
+@keyframes glow-red {
+  0%, 100% { text-shadow: 0 0 6px var(--red-glow); }
+  50% { text-shadow: 0 0 14px var(--red-glow), 0 0 28px var(--red-glow); }
+}
+@keyframes blink-critical {
+  0%, 100% { opacity: 1; text-shadow: 0 0 8px var(--red-glow); }
+  25% { opacity: .4; text-shadow: none; }
+  75% { opacity: 1; text-shadow: 0 0 16px var(--red-glow), 0 0 32px var(--red-glow); }
+}
+@keyframes dot-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 currentColor; }
+  50% { transform: scale(1.15); box-shadow: 0 0 0 4px currentColor; }
+}
+@keyframes dot-blink {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px currentColor; }
+  50% { opacity: .3; box-shadow: 0 0 12px currentColor, 0 0 20px currentColor; }
+}
+@keyframes card-glow-red {
+  0%, 100% { box-shadow: var(--sh), 0 0 0 1px var(--red), 0 0 8px var(--red-glow); }
+  50% { box-shadow: var(--sh), 0 0 0 1px var(--red), 0 0 18px var(--red-glow); }
+}
+@keyframes slide-in { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: none; } }
+@keyframes banner-in { from { opacity:0; transform: scale(.98); } to { opacity:1; transform: none; } }
+
+/* ── Reset ── */
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.5}
+a{color:var(--blue);text-decoration:none}
+
+/* ── Header ── */
+.hdr{background:var(--sf);border-bottom:1px solid var(--bd);padding:16px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;position:sticky;top:0;z-index:50;box-shadow:var(--sh);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.hdr-left{display:flex;align-items:center;gap:12px}
+.hdr-logo{font-size:22px;display:flex;align-items:center}
+.hdr-title{font-size:20px;font-weight:800;letter-spacing:-.04em}
+.hdr-sub{font-size:11px;color:var(--t3);font-family:var(--mono);letter-spacing:.02em}
+.hdr-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tag{font-size:10px;padding:4px 10px;border-radius:20px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.tag-server{background:var(--green-bg);color:var(--green)}
+.tag-browser{background:var(--amber-bg);color:var(--amber)}
+.meta{font-size:11px;color:var(--t3);font-family:var(--mono)}
+.btn{padding:9px 18px;border-radius:var(--radius-sm);border:1px solid var(--bd);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);background:var(--sf);color:var(--tx);transition:all .15s;-webkit-tap-highlight-color:transparent;white-space:nowrap}
+.btn:hover{border-color:var(--bd2);box-shadow:var(--sh)}
+.btn:active{transform:scale(.97)}
+.btn-p{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn-p:hover{filter:brightness(1.1)}
+.btn-csv{background:var(--sf2);color:var(--t2)}
+.theme-btn{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;padding:0}
+
+/* ── Hero Banner ── */
+.hero{margin:20px 20px 0;padding:28px 32px;border-radius:var(--radius);display:flex;align-items:center;gap:20px;background:var(--sf);border:1px solid var(--bd);box-shadow:var(--sh);animation:banner-in .4s ease;transition:border-color .4s,box-shadow .4s}
+.hero.ok{border-left:6px solid var(--green)}
+.hero.warn{border-left:6px solid var(--amber)}
+.hero.bad{border-left:6px solid var(--red);box-shadow:var(--sh),0 0 12px var(--red-glow)}
+.hero-icon{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;flex-shrink:0}
+.hero.ok .hero-icon{background:var(--green-bg);color:var(--green)}
+.hero.warn .hero-icon{background:var(--amber-bg);color:var(--amber)}
+.hero.bad .hero-icon{background:var(--red-bg);color:var(--red);animation:dot-pulse 2s infinite}
+.hero-text{flex:1}
+.hero-title{font-size:20px;font-weight:800;letter-spacing:-.02em}
+.hero-desc{font-size:14px;color:var(--t2);margin-top:2px}
+.hero-stats{display:flex;gap:24px;flex-wrap:wrap;margin-top:8px}
+.hero-stat{text-align:center}
+.hero-stat-val{font-size:22px;font-weight:800;font-family:var(--mono);line-height:1.1}
+.hero-stat-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+
+/* ── Score Ring ── */
+.score-ring{position:relative;width:56px;height:56px;flex-shrink:0}
+.score-ring svg{transform:rotate(-90deg)}
+.score-ring-val{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:var(--mono)}
+
+/* ── DNS Bar ── */
+.dns-bar{margin:8px 20px 0;padding:10px 18px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--radius-sm);display:none;gap:18px;flex-wrap:wrap;font-size:12px;font-family:var(--mono);box-shadow:var(--sh)}
+
+/* ── Group Tabs ── */
+.tabs-wrap{margin:20px 20px 0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tabs-wrap::-webkit-scrollbar{display:none}
+.tabs{display:flex;gap:4px;min-width:max-content}
+.tab{padding:10px 20px;border-radius:var(--radius-sm) var(--radius-sm) 0 0;font-size:14px;font-weight:600;cursor:pointer;border:1px solid transparent;border-bottom:none;color:var(--t3);background:transparent;transition:all .15s;font-family:var(--sans);white-space:nowrap;-webkit-tap-highlight-color:transparent;position:relative}
+.tab:hover{color:var(--tx);background:var(--sf2)}
+.tab.on{color:var(--tx);background:var(--sf);border-color:var(--bd)}
+.tab-ct{font-size:11px;color:var(--mt);margin-left:4px;font-weight:400}
+.tab-health{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%}
+.tline{margin:0 20px;height:1px;background:var(--bd)}
+
+/* ── Content ── */
+.ct{padding:20px 20px 0}
+.grp{margin-bottom:24px;animation:slide-in .35s ease}
+.grp-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.grp-l{font-size:12px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em}
+.grp-health{display:flex;align-items:center;gap:6px;font-size:12px;font-family:var(--mono)}
+.grp-health-dot{width:8px;height:8px;border-radius:50%}
+
+/* ═══ Endpoint Card ═══ */
+.ep{background:var(--sf);border:1px solid var(--bd);border-radius:var(--radius);margin-bottom:10px;box-shadow:var(--sh);transition:all .25s;overflow:hidden}
+.ep:hover{box-shadow:var(--sh2);border-color:var(--bd2)}
+.ep.status-warn{border-color:var(--amber);box-shadow:var(--sh),0 0 6px var(--amber-glow)}
+.ep.status-bad{border-color:var(--red);animation:card-glow-red 2s ease-in-out infinite}
+.ep-main{padding:18px 22px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ep-row1{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.ep-left{display:flex;align-items:center;gap:12px;min-width:0}
+
+/* Traffic-light dot */
+.ep-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;transition:all .3s}
+.ep-dot.green{background:var(--green);color:var(--green)}
+.ep-dot.amber{background:var(--amber);color:var(--amber);animation:dot-pulse 2s ease-in-out infinite}
+.ep-dot.red{background:var(--red);color:var(--red);animation:dot-blink 1.2s ease-in-out infinite}
+.ep-dot.grey{background:var(--mt)}
+
+.ep-name{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ep-badge{font-size:11px;font-weight:700;padding:3px 12px;border-radius:20px;white-space:nowrap}
+
+.ep-right{display:flex;align-items:center;gap:20px;flex-shrink:0}
+.ep-metric{text-align:right}
+/* Traffic-light latency number */
+.ep-metric-val{font-size:22px;font-weight:800;font-family:var(--mono);line-height:1;transition:color .3s}
+.ep-metric-val.green{color:var(--green)}
+.ep-metric-val.amber{color:var(--amber);animation:pulse-amber 2.5s ease-in-out infinite}
+.ep-metric-val.red-glow{color:var(--red);animation:glow-red 1.8s ease-in-out infinite}
+.ep-metric-val.red-blink{color:var(--red);animation:blink-critical 1s ease-in-out infinite}
+.ep-metric-lbl{font-size:10px;color:var(--mt);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+
+/* Human-readable status line */
+.ep-status-line{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:var(--t2)}
+.ep-status-line .friendly{font-weight:600}
+.ep-url{font-size:11px;color:var(--mt);font-family:var(--mono);word-break:break-all}
+
+/* Uptime bar */
+.ub-w{margin-top:12px}
+.ub-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.ub-label span{font-size:10px;color:var(--mt);font-family:var(--mono)}
+.ub{display:flex;gap:2px;height:24px}
+.ub span{flex:1;border-radius:3px;transition:all .3s;cursor:pointer;position:relative}
+.ub span:hover{transform:scaleY(1.4);filter:brightness(1.15)}
+
+/* Expandable detail */
+.ep-detail{max-height:0;overflow:hidden;transition:max-height .35s ease}
+.ep.open .ep-detail{max-height:280px;border-top:1px solid var(--bd)}
+.ep-detail-inner{padding:16px 22px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.spark-wrap{flex:1;min-width:140px}
+.spark-title{font-size:10px;color:var(--mt);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.spark{height:52px;width:100%}
+.stats{display:flex;gap:6px;flex-wrap:wrap}
+.pill{font-size:12px;color:var(--t2);font-family:var(--mono);background:var(--sf2);padding:6px 14px;border-radius:8px;cursor:help;position:relative;transition:all .15s;-webkit-tap-highlight-color:transparent;border:1px solid var(--bd);display:inline-flex;align-items:center;gap:4px}
+.pill:hover,.pill:focus{background:var(--sf3);border-color:var(--bd2);outline:none}
+.pill b{color:var(--tx);font-weight:700}
+.pill-icon{font-size:14px}
+.pill::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);padding:7px 14px;background:var(--tx);color:var(--bg);font-size:11px;border-radius:8px;white-space:nowrap;z-index:20;pointer-events:none;opacity:0;transition:opacity .15s;box-shadow:var(--sh2);font-family:var(--sans);font-weight:500}
+.pill:hover::after,.pill.show-tip::after{opacity:1}
+.ep-expand{font-size:11px;color:var(--mt);text-align:center;padding:4px;transition:color .15s;letter-spacing:.03em}
+.ep.open .ep-expand{color:var(--t2)}
+
+/* ── Legend ── */
+.legend{margin:20px;padding:20px 24px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--radius);box-shadow:var(--sh)}
+.legend-title{font-size:13px;font-weight:700;color:var(--t2);margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em}
+.legend-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.legend-item{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--t2)}
+.legend-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.legend-dot.blink{animation:dot-blink 1.2s infinite}
+.legend-label b{display:block;font-weight:700;color:var(--tx);font-size:13px}
+.legend-label span{font-size:11px;color:var(--t3)}
+
+/* ── Activity Log ── */
+.log-w{margin:20px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--radius);overflow:hidden;box-shadow:var(--sh)}
+.log-hd{padding:16px 22px;font-size:15px;font-weight:700;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center}
+.log-ls{max-height:380px;overflow-y:auto}
+.lr{padding:10px 22px;display:flex;align-items:center;gap:10px;font-size:13px;font-family:var(--mono);border-bottom:1px solid var(--bd);transition:background .15s}
+.lr:last-child{border:none}
+.lr:nth-child(even){background:var(--sf2)}
+.lr:hover{background:var(--sf3)}
+.lr-d{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.lr-t{color:var(--mt);width:78px;flex-shrink:0;font-size:12px}
+.lr-n{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx)}
+.lr-c{width:38px;text-align:center;font-size:12px}
+.lr-m{width:80px;text-align:right;font-weight:700}
+.lr-e{color:var(--red);font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lr-g{color:var(--mt);font-size:11px;width:80px;text-align:right}
+.lr-friendly{font-size:11px;color:var(--t3);width:80px}
+
+/* ── Footer ── */
+.ftr{margin:20px 20px 40px;padding:20px 24px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--radius);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;box-shadow:var(--sh)}
+.ftr-links{display:flex;gap:20px;font-size:13px;color:var(--t2)}
+.ftr-brand{font-size:12px;color:var(--mt);font-family:var(--mono)}
+
+/* ── Settings panel ── */
+.settings-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;animation:slide-in .2s}
+.settings-overlay.show{display:flex;align-items:center;justify-content:center}
+.settings-panel{background:var(--sf);border:1px solid var(--bd);border-radius:var(--radius);padding:28px;width:min(420px,90vw);box-shadow:var(--sh2)}
+.settings-title{font-size:18px;font-weight:800;margin-bottom:16px}
+.settings-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--bd)}
+.settings-row:last-child{border:none}
+.settings-row label{font-size:14px;color:var(--tx)}
+.settings-row small{font-size:11px;color:var(--t3);display:block;margin-top:2px}
+.toggle{position:relative;width:44px;height:24px;background:var(--bd);border-radius:12px;cursor:pointer;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--green)}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.toggle.on::after{transform:translateX(20px)}
+.settings-close{margin-top:16px;width:100%}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  .hero{flex-wrap:wrap;padding:20px}.hero-stats{gap:16px}
+  .hero-stat-val{font-size:18px}
+  .ep-right{gap:12px}.ep-metric-val{font-size:18px}.ep-name{font-size:14px}
+  .hdr{padding:12px 16px}.hdr-title{font-size:17px}
+  .ct{padding:16px 16px 0}.hero{margin:12px 12px 0}.legend,.log-w,.ftr{margin:12px}
+  .tabs-wrap{margin:12px 12px 0}.tline{margin:0 12px}
+}
+@media(max-width:480px){
+  .ep-right{flex-wrap:wrap;gap:8px}.ep-metric-val{font-size:16px}
+  .hero-stats{gap:10px}.hero-stat-val{font-size:16px}
+  .hdr-r .btn span.btn-label{display:none}
+  .ep-main{padding:14px 16px}
+  .lr{padding:8px 14px;font-size:12px;gap:6px}
+  .lr-g,.lr-friendly{display:none}
+}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
+</style>
+</head>
+<body data-theme="light">
+
+<!-- ═══ Header ═══ -->
+<div class="hdr">
+  <div class="hdr-left">
+    <span class="hdr-logo">📡</span>
+    <div>
+      <div class="hdr-title">Kesh Monitoring</div>
+      <div class="hdr-sub">Live Status Dashboard</div>
+    </div>
+  </div>
+  <div class="hdr-r">
+    <span class="tag" id="mTag">—</span>
+    <span class="meta" id="rTag"></span>
+    <span class="meta" id="cd"></span>
+    <span class="meta" id="lu"></span>
+    <button class="btn" onclick="initiateProtocol()" title="Emergency Incident Response" style="background:var(--red-bg);color:var(--red);border-color:var(--red);font-weight:800;letter-spacing:.02em">🚨 <span class="btn-label">Incident Response</span></button>
+    <button class="btn btn-p" onclick="run()" title="Run all checks now">⟳ <span class="btn-label">Check Now</span></button>
+    <button class="btn btn-csv" onclick="dlCSV()" title="Export data to CSV">↓ <span class="btn-label">CSV</span></button>
+    <button class="btn theme-btn" onclick="toggleSettings()" id="setBtn" title="Settings">⚙</button>
+    <button class="btn theme-btn" onclick="toggleTheme()" id="tBtn" title="Toggle theme">🌙</button>
+  </div>
+</div>
+
+<!-- ═══ Hero Banner ═══ -->
+<div class="hero ok" id="hero">
+  <div class="hero-icon" id="heroIcon">…</div>
+  <div class="hero-text">
+    <div class="hero-title" id="heroTitle">Starting up…</div>
+    <div class="hero-desc" id="heroDesc">Running initial checks</div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="hero-stat-val" id="hsTotal">—</div><div class="hero-stat-lbl">Total Services</div></div>
+      <div class="hero-stat"><div class="hero-stat-val" id="hsUp" style="color:var(--green)">—</div><div class="hero-stat-lbl">Healthy</div></div>
+      <div class="hero-stat"><div class="hero-stat-val" id="hsSlow" style="color:var(--amber)">—</div><div class="hero-stat-lbl">Slow</div></div>
+      <div class="hero-stat"><div class="hero-stat-val" id="hsDown" style="color:var(--red)">—</div><div class="hero-stat-lbl">Down</div></div>
+      <div class="hero-stat"><div class="hero-stat-val" id="hsUptime">—</div><div class="hero-stat-lbl">Core Uptime</div></div>
+      <div class="hero-stat"><div class="hero-stat-val" id="hsChecks">0</div><div class="hero-stat-lbl">Rounds</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- DNS -->
+<div class="dns-bar" id="dnsBar"></div>
+
+<!-- ═══ Tabs ═══ -->
+<div class="tabs-wrap"><div class="tabs" id="tabBar"></div></div>
+<div class="tline"></div>
+
+<!-- ═══ Cards ═══ -->
+<div class="ct" id="ct"></div>
+
+<!-- ═══ Traffic Light Legend ═══ -->
+<div class="legend">
+  <div class="legend-title">How to read this page</div>
+  <div class="legend-grid">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--green)"></div>
+      <div class="legend-label"><b>Fast — under 100 ms</b><span>Working normally</span></div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--amber);animation:dot-pulse 2s infinite;color:var(--amber)"></div>
+      <div class="legend-label"><b>Elevated — 100–499 ms</b><span>Slower than usual</span></div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--red)"></div>
+      <div class="legend-label"><b>Slow — 500–2999 ms</b><span>Experiencing delays</span></div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot blink" style="background:var(--red);color:var(--red)"></div>
+      <div class="legend-label"><b>Critical — 3000 ms+ / Down</b><span>Needs attention</span></div>
+    </div>
+  </div>
+  <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd);font-size:12px;color:var(--t3);line-height:1.6">
+    <b style="color:var(--green)">CORE</b> = Sentec &amp; eInvoice — our own systems. These drive the status banner and uptime %.
+    <b style="color:var(--t3);margin-left:8px">EXTERNAL</b> = 3rd-party sites (Booking.com, Facebook, etc.) — monitored for reference only, won't trigger alerts.<br>
+    <b>History:</b> Saved in your browser (survives refresh). Use ↓ CSV to export a snapshot anytime. Each browser/device keeps its own history.
+  </div>
+</div>
+
+<!-- ═══ Log ═══ -->
+<div class="log-w">
+  <div class="log-hd"><span>Activity Log</span><span class="meta" id="lCt"></span></div>
+  <div class="log-ls" id="lL"><div class="lr" style="justify-content:center;color:var(--mt);padding:28px">Waiting for first check…</div></div>
+</div>
+
+<!-- ═══ Footer ═══ -->
+<div class="ftr">
+  <div class="ftr-links">
+    <span><span style="color:var(--green)">●</span> Fast &lt;100ms</span>
+    <span><span style="color:var(--amber)">●</span> Elevated 100–499ms</span>
+    <span><span style="color:var(--red)">●</span> Slow 500ms+</span>
+    <span>Auto-checks every 30s</span>
+  </div>
+  <div class="ftr-brand">Kesh Monitoring v5 · Built by Kesh · Penang</div>
+</div>
+
+<!-- ═══ Settings Panel ═══ -->
+<div class="settings-overlay" id="settingsOverlay" onclick="if(event.target===this)toggleSettings()">
+  <div class="settings-panel">
+    <div class="settings-title">⚙ Settings</div>
+    <div class="settings-row">
+      <div><label>Sound alerts</label><small>Play a sound when a service goes down</small></div>
+      <div class="toggle" id="togSound" onclick="togSetting('sound')"></div>
+    </div>
+    <div class="settings-row">
+      <div><label>Show URLs</label><small>Display full endpoint URLs on cards</small></div>
+      <div class="toggle on" id="togUrls" onclick="togSetting('urls')"></div>
+    </div>
+    <div class="settings-row">
+      <div><label>Simple mode</label><small>Hide technical details like HTTP codes</small></div>
+      <div class="toggle" id="togSimple" onclick="togSetting('simple')"></div>
+    </div>
+    <div class="settings-row">
+      <div><label>Compact view</label><small>Smaller cards, more visible at once</small></div>
+      <div class="toggle" id="togCompact" onclick="togSetting('compact')"></div>
+    </div>
+    <button class="btn settings-close" onclick="toggleSettings()">Close</button>
+  </div>
+</div>
+
+<!-- ═══ INCIDENT RESPONSE (Easter Egg) ═══ -->
+<div class="settings-overlay" id="irOverlay" onclick="if(event.target===this&&irDone)closeIR()">
+  <div class="settings-panel" style="max-width:520px;font-family:var(--mono)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:16px;font-weight:800;color:var(--red);font-family:var(--sans)">🚨 INCIDENT RESPONSE SYSTEM</div>
+      <span style="font-size:10px;padding:3px 8px;background:var(--red-bg);color:var(--red);border-radius:4px;font-weight:700">CLASSIFIED</span>
+    </div>
+    <div id="irTerminal" style="background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:16px;min-height:220px;font-size:12px;line-height:1.8;overflow-y:auto;max-height:320px"></div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <div style="flex:1;background:var(--bd);border-radius:4px;height:6px;overflow:hidden"><div id="irBar" style="width:0%;height:100%;background:var(--red);border-radius:4px;transition:width .3s"></div></div>
+      <span id="irPct" style="font-size:11px;color:var(--t3);width:36px;text-align:right">0%</span>
+    </div>
+    <button class="btn settings-close" id="irClose" style="display:none;margin-top:12px" onclick="closeIR()">Close</button>
+  </div>
+</div>
+
+<script>
+/* ═══ INCIDENT RESPONSE EASTER EGG ═══ */
+let irDone = false;
+function closeIR() { document.getElementById('irOverlay').classList.remove('show'); }
+
+function initiateProtocol() {
+  irDone = false;
+  const overlay = document.getElementById('irOverlay');
+  const terminal = document.getElementById('irTerminal');
+  const bar = document.getElementById('irBar');
+  const pct = document.getElementById('irPct');
+  const closeBtn = document.getElementById('irClose');
+  terminal.innerHTML = '';
+  bar.style.width = '0%';
+  pct.textContent = '0%';
+  closeBtn.style.display = 'none';
+  overlay.classList.add('show');
+
+  // ── Time-aware punchlines ──
+  const now = new Date();
+  const hour = now.getHours();
+  const day = now.getDay(); // 0=Sun, 5=Fri, 6=Sat
+  const isFriday = day === 5;
+  const isWeekend = day === 0 || day === 6;
+
+  let bribe, bribeResult, emoji, resolution, severity, eta;
+
+  if (hour >= 2 && hour < 6) {
+    // 2am-6am — go sleep la
+    bribe = '> Offering packets a pillow and blanket...';
+    bribeResult = '✓ Even the packets are sleeping. You should too.';
+    emoji = '😴';
+    resolution = 'Bro. It\'s ' + hour + 'am. Close the laptop. Go sleep.';
+    severity = 'Mengantuk Tahap Kritikal (Dangerously Sleepy)';
+    eta = 'Tomorrow morning after you wake up';
+  } else if (hour >= 6 && hour < 9) {
+    // 6am-9am — breakfast
+    bribe = '> Offering packets roti canai and teh tarik...';
+    bribeResult = '✓ Packets can smell the roti canai. Deal accepted.';
+    emoji = '🫓';
+    resolution = 'Go tapau roti canai first. Cannot troubleshoot on empty stomach.';
+    severity = 'Belum Sarapan (Pre-Breakfast Emergency)';
+    eta = 'After breakfast + one teh tarik';
+  } else if (hour >= 9 && hour < 11) {
+    // 9am-11am — morning kopi
+    bribe = '> Offering packets kopi-o kosong...';
+    bribeResult = '✓ Packets are now caffeinated and cooperative';
+    emoji = '☕';
+    resolution = 'Too early for real problems. Get a kopi first, think later.';
+    severity = 'Belum Kopi (Pre-Coffee Syndrome)';
+    eta = 'After second cup of kopi';
+  } else if (hour >= 11 && hour < 14) {
+    // 11am-2pm — lunch
+    bribe = '> Offering packets nasi lemak as incentive...';
+    bribeResult = '✓ Packets have agreed to cooperate';
+    emoji = '🍛';
+    resolution = 'Go makan. Everything will be fine after nasi lemak.';
+    severity = 'Lapar (Hungry)';
+    eta = 'After lunch + food coma nap';
+  } else if (hour >= 14 && hour < 16) {
+    // 2pm-4pm — post-lunch slump
+    bribe = '> Offering packets ice milo to stay awake...';
+    bribeResult = '✓ Packets also experiencing post-lunch drowsiness';
+    emoji = '🥤';
+    resolution = 'The 2pm food coma is real. Go mamak for an ice milo.';
+    severity = 'Mengantuk Lepas Makan (Post-Lunch Coma)';
+    eta = 'After the drowsiness passes (3:30pm maybe)';
+  } else if (hour >= 16 && hour < 18) {
+    // 4pm-6pm — tea time
+    bribe = '> Offering packets pisang goreng and teh tarik...';
+    bribeResult = '✓ Packets love a good tea break';
+    emoji = '🍌';
+    resolution = 'It\'s tea time. Go get kuih and teh tarik at the mamak.';
+    severity = 'Tea Time Emergency';
+    eta = 'After one plate of pisang goreng';
+  } else if (hour >= 18 && hour < 20) {
+    // 6pm-8pm — dinner
+    bribe = isFriday
+      ? '> Offering packets Friday night steamboat...'
+      : '> Offering packets char kuey teow for dinner...';
+    bribeResult = isFriday
+      ? '✓ Packets: "TGIF! We\'re clocking out too"'
+      : '✓ Packets have accepted the dinner invitation';
+    emoji = isFriday ? '🎉' : '🍜';
+    resolution = isFriday
+      ? 'It\'s Friday evening! Close the laptop. Go enjoy your weekend.'
+      : 'Go dinner first la. The servers can wait, your stomach cannot.';
+    severity = isFriday ? 'TGIF Syndrome' : 'Lapar Balik (Dinner O\'Clock)';
+    eta = isFriday ? 'Monday morning (honestly)' : 'After dinner + one episode of Netflix';
+  } else if (hour >= 20 && hour < 23) {
+    // 8pm-11pm — supper / night
+    bribe = isFriday || isWeekend
+      ? '> Offering packets jalan-jalan night market vibes...'
+      : '> Offering packets maggi goreng special...';
+    bribeResult = isFriday || isWeekend
+      ? '✓ Packets have gone to the pasar malam'
+      : '✓ Packets want double telur on their maggi goreng';
+    emoji = isFriday || isWeekend ? '🌙' : '🍝';
+    resolution = isFriday || isWeekend
+      ? 'It\'s the weekend! Why are you even looking at this? Go have fun!'
+      : 'Supper time. Go mamak, order maggi goreng, gossip a bit.';
+    severity = isFriday || isWeekend
+      ? 'Weekend Mode (Do Not Disturb)'
+      : 'Supper O\'Clock';
+    eta = isFriday || isWeekend
+      ? 'Not your problem until Monday'
+      : 'After supper + teh tarik session';
+  } else {
+    // 11pm-2am — go home la
+    bribe = '> Offering packets a comfortable shutdown sequence...';
+    bribeResult = '✓ Packets: "Even we have work-life balance bro"';
+    emoji = '🛏️';
+    resolution = 'It\'s almost midnight. The internet doesn\'t need you right now. Go rest.';
+    severity = 'Overwork Syndrome (Balik Rumah La)';
+    eta = 'Tomorrow. Fresh eyes, fresh perspective.';
+  }
+
+  const lines = [
+    { t: '> Authenticating operator credentials...', d: 600, p: 5 },
+    { t: '<span style="color:var(--green)">✓ Identity confirmed: Admin (Kesh)</span>', d: 400, p: 8 },
+    { t: '> Connecting to Kesh Penang incident bus...', d: 700, p: 12 },
+    { t: '> Scanning all 34 endpoints for anomalies...', d: 900, p: 20 },
+    { t: '<span style="color:var(--amber)">⚠ Anomaly detected: elevated latency on 3 nodes</span>', d: 600, p: 28 },
+    { t: '> Isolating affected nodes from primary mesh...', d: 800, p: 35 },
+    { t: '> Rerouting traffic through backup gateway...', d: 700, p: 42 },
+    { t: '> Flushing DNS cache across all resolvers...', d: 500, p: 48 },
+    { t: '> Deploying countermeasures to edge nodes...', d: 800, p: 55 },
+    { t: '> Recompiling network stack with --fix-everything flag...', d: 900, p: 63 },
+    { t: '> Negotiating with packets to behave properly...', d: 700, p: 70 },
+    { t: '<span style="color:var(--amber)">⚠ Packets are being difficult. Escalating.</span>', d: 600, p: 74 },
+    { t: bribe, d: 800, p: 80 },
+    { t: '<span style="color:var(--green)">' + bribeResult + '</span>', d: 500, p: 85 },
+    { t: '> Running final diagnostics...', d: 700, p: 90 },
+    { t: '> Generating incident report...', d: 600, p: 95 },
+    { t: '', d: 300, p: 98 },
+    { t: '═══════════════════════════════════════', d: 200, p: 99 },
+    { t: '', d: 100, p: 100 },
+    { t: '<span style="font-size:14px;font-weight:800;color:var(--tx)">📋 INCIDENT REPORT #' + Math.floor(Math.random()*9000+1000) + '</span>', d: 400, p: 100 },
+    { t: '<span style="color:var(--t3);font-size:11px">' + now.toLocaleString() + '</span>', d: 100, p: 100 },
+    { t: '', d: 100, p: 100 },
+    { t: '<span style="font-size:13px;color:var(--t2)">Root Cause Analysis:</span>', d: 300, p: 100 },
+    { t: '<span style="font-size:24px;display:block;text-align:center;padding:10px 0">' + emoji + '</span>', d: 400, p: 100 },
+    { t: '<span style="font-size:14px;color:var(--green);font-weight:800;display:block;text-align:center">Have you tried turning it off and on again?</span>', d: 500, p: 100 },
+    { t: '', d: 200, p: 100 },
+    { t: '<span style="color:var(--t3)">Resolution: ' + resolution + '</span>', d: 400, p: 100 },
+    { t: '<span style="color:var(--t3)">Severity: ' + severity + '</span>', d: 300, p: 100 },
+    { t: '<span style="color:var(--t3)">ETA to fix: ' + eta + '</span>', d: 300, p: 100 },
+    { t: '═══════════════════════════════════════', d: 200, p: 100 },
+  ];
+
+  let i = 0;
+  function nextLine() {
+    if (i >= lines.length) {
+      irDone = true;
+      closeBtn.style.display = 'block';
+      return;
+    }
+    const line = lines[i];
+    if (line.t) {
+      const div = document.createElement('div');
+      div.innerHTML = line.t;
+      div.style.animation = 'slide-in .2s ease';
+      terminal.appendChild(div);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+    bar.style.width = line.p + '%';
+    pct.textContent = line.p + '%';
+    i++;
+    setTimeout(nextLine, line.d);
+  }
+  nextLine();
+}
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════
+   KESH MONITORING v5 — ENGINE
+   ══════════════════════════════════════════════════ */
+
+// ── Thresholds (traffic light) ──
+const TH_GREEN  = 100;   // < 100ms = green
+const TH_AMBER  = 500;   // 100-499ms = amber
+const TH_RED    = 3000;  // 500-2999ms = red glow
+                          // 3000ms+ or error = red blink (critical)
+const TIMEOUT   = 12000;
+const INTERVAL  = 30000;
+const MAX_HIST  = 200;
+
+// ── Targets (fallback for static hosting) ──
+const TARGETS_FALLBACK = [
+{id:"pms",label:"PMS",url:"https://pms.sentec.io",group:"Sentec",desc:"Property Management System"},
+{id:"pos",label:"POS",url:"https://pos.sentec.io",group:"Sentec",desc:"Point of Sale"},
+{id:"finance",label:"Finance",url:"https://finance.sentec.io",group:"Sentec",desc:"Financial system"},
+{id:"ems",label:"EMS",url:"https://ems.sentec.io",group:"Sentec",desc:"Employee Management"},
+{id:"ems-emp",label:"EMS Employees",url:"https://employees.ems.sentec.io",group:"Sentec",desc:"Employee portal"},
+{id:"einv-api",label:"e-Invoice API",url:"https://api.myinvois.hasil.gov.my",group:"eInvoice Prod",desc:"LHDN e-Invoice API (production)"},
+{id:"einv-portal",label:"e-Invoice Portal",url:"https://myinvois.hasil.gov.my",group:"eInvoice Prod",desc:"LHDN e-Invoice web portal"},
+{id:"einv-id",label:"e-Invoice Identity",url:"https://identity.myinvois.hasil.gov.my",group:"eInvoice Prod",desc:"LHDN identity/auth server"},
+{id:"einv-api-pp",label:"API (Sandbox)",url:"https://preprod-api.myinvois.hasil.gov.my",group:"eInvoice Sandbox",desc:"Pre-production API"},
+{id:"einv-portal-pp",label:"Portal (Sandbox)",url:"https://preprod.myinvois.hasil.gov.my",group:"eInvoice Sandbox",desc:"Pre-production portal"},
+{id:"einv-id-pp",label:"Identity (Sandbox)",url:"https://preprod-identity.myinvois.hasil.gov.my",group:"eInvoice Sandbox",desc:"Pre-production identity"},
+{id:"ota-booking",label:"Booking.com",url:"https://www.booking.com",group:"Bookings",desc:"Hotel booking platform"},
+{id:"ota-agoda",label:"Agoda",url:"https://www.agoda.com",group:"Bookings",desc:"Hotel booking platform"},
+{id:"ota-expedia",label:"Expedia",url:"https://www.expedia.com.my",group:"Bookings",desc:"Travel booking platform"},
+{id:"ota-trip",label:"Trip.com",url:"https://www.trip.com",group:"Bookings",desc:"Travel booking platform"},
+{id:"ota-airbnb",label:"Airbnb",url:"https://www.airbnb.com",group:"Bookings",desc:"Short-stay rental platform"},
+{id:"soc-fb",label:"Facebook",url:"https://www.facebook.com",group:"Social",desc:"Social media platform"},
+{id:"soc-ig",label:"Instagram",url:"https://www.instagram.com",group:"Social",desc:"Photo/video sharing"},
+{id:"soc-tt",label:"TikTok",url:"https://www.tiktok.com",group:"Social",desc:"Short video platform"},
+{id:"soc-wa",label:"WhatsApp Web",url:"https://web.whatsapp.com",group:"Social",desc:"Messaging web client"},
+{id:"soc-ta",label:"TripAdvisor",url:"https://www.tripadvisor.com.my",group:"Social",desc:"Travel reviews"},
+{id:"fnb-grab",label:"GrabFood",url:"https://food.grab.com",group:"F&B",desc:"Food delivery"},
+{id:"fnb-panda",label:"foodpanda",url:"https://www.foodpanda.my",group:"F&B",desc:"Food delivery"},
+{id:"isp-tm",label:"TM / Unifi",url:"https://www.unifi.com.my",group:"Malaysia",desc:"Telekom Malaysia broadband"},
+{id:"isp-maxis",label:"Maxis",url:"https://www.maxis.com.my",group:"Malaysia",desc:"Mobile & broadband"},
+{id:"isp-digi",label:"CelcomDigi",url:"https://www.celcomdigi.com",group:"Malaysia",desc:"Mobile & broadband"},
+{id:"isp-time",label:"TIME dotCom",url:"https://www.time.com.my",group:"Malaysia",desc:"Fibre broadband"},
+{id:"isp-umob",label:"U Mobile",url:"https://www.u.com.my",group:"Malaysia",desc:"Mobile carrier"},
+{id:"my-lhdn",label:"LHDN (Hasil)",url:"https://www.hasil.gov.my",group:"Malaysia",desc:"Malaysian tax authority"},
+{id:"my-gov",label:"MyGov",url:"https://www.malaysia.gov.my",group:"Malaysia",desc:"Government portal"},
+{id:"my-bank",label:"Maybank",url:"https://www.maybank2u.com.my",group:"Malaysia",desc:"Online banking — blocks browser checks (use server mode)"},
+{id:"gl-google",label:"Google",url:"https://www.google.com",group:"Global",desc:"Reference baseline"},
+{id:"gl-cf",label:"Cloudflare",url:"https://www.cloudflare.com",group:"Global",desc:"CDN/DNS baseline"},
+];
+
+const TAB_MAP = {
+  'All':null,
+  'Sentec':['Sentec'],
+  'eInvoice':['eInvoice Prod','eInvoice Sandbox'],
+  'Bookings':['Bookings'],
+  'Social':['Social'],
+  'F&B':['F&B'],
+  'Malaysia':['Malaysia'],
+  'Global':['Global'],
+};
+
+// ── Which groups matter for the big banner + sound alerts ──
+// Only YOUR systems. External sites (Booking.com, Facebook, etc.) are
+// reference checks — they still show traffic-light colors on their cards
+// but won't turn the hero banner red or trigger alarm sounds.
+const CRITICAL_GROUPS = ['Sentec', 'eInvoice Prod', 'eInvoice Sandbox'];
+
+function isCriticalTarget(t) {
+  return CRITICAL_GROUPS.includes(t.group);
+}
+
+// ── State ──
+let T = [], H = {}, checkCount = 0, serverMode = false, region = 'Browser';
+let activeTab = 'All', countdown = INTERVAL / 1000;
+let prevStatus = {};  // for sound alerts
+let settings = { sound: false, urls: true, simple: false, compact: false };
+
+// ═══ Traffic-light logic ═══
+function severity(ms, error) {
+  if (error) return 'critical';
+  if (ms >= TH_RED) return 'critical';
+  if (ms >= TH_AMBER) return 'slow';
+  if (ms >= TH_GREEN) return 'elevated';
+  return 'fast';
+}
+
+function severityColor(sev) {
+  const dark = document.body.dataset.theme === 'dark';
+  return {
+    fast:     dark ? '#34d399' : '#059669',
+    elevated: dark ? '#fbbf24' : '#d97706',
+    slow:     dark ? '#f87171' : '#dc2626',
+    critical: dark ? '#f87171' : '#dc2626',
+    unknown:  dark ? '#475569' : '#9ca3af',
+  }[sev] || (dark ? '#475569' : '#9ca3af');
+}
+
+function friendlyStatus(sev) {
+  return {
+    fast: 'Working normally',
+    elevated: 'Slower than usual',
+    slow: 'Experiencing delays',
+    critical: 'Not responding',
+    unknown: 'Checking…',
+  }[sev] || 'Checking…';
+}
+
+function friendlyBadge(sev) {
+  return {
+    fast: 'Healthy',
+    elevated: 'Elevated',
+    slow: 'Slow',
+    critical: 'Down',
+    unknown: 'Pending',
+  }[sev] || '…';
+}
+
+function dotClass(sev) {
+  return { fast:'green', elevated:'amber', slow:'red', critical:'red', unknown:'grey' }[sev] || 'grey';
+}
+
+function latencyClass(sev) {
+  return { fast:'green', elevated:'amber', slow:'red-glow', critical:'red-blink', unknown:'' }[sev] || '';
+}
+
+function cardClass(sev) {
+  if (sev === 'critical') return 'status-bad';
+  if (sev === 'slow' || sev === 'elevated') return 'status-warn';
+  return '';
+}
+
+// ── Formatters ──
+function fMs(ms) {
+  if (ms == null) return '—';
+  return ms < 1000 ? ms + ' ms' : (ms / 1000).toFixed(2) + ' s';
+}
+function fTime(ts) {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+function p95(arr) {
+  if (!arr.length) return null;
+  const s = [...arr].sort((a, b) => a - b);
+  return s[Math.floor(s.length * 0.95)];
+}
+
+// ── Persistence ──
+function save() { try { localStorage.setItem('neo5', JSON.stringify({ H, checkCount })); } catch {} }
+function load() { try { const d = JSON.parse(localStorage.getItem('neo5')); if (d) { H = d.H || {}; checkCount = d.checkCount || 0; } } catch {} }
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('neo5-settings'));
+    if (s) settings = { ...settings, ...s };
+  } catch {}
+  applySettings();
+}
+function saveSettings() { try { localStorage.setItem('neo5-settings', JSON.stringify(settings)); } catch {} }
+function applySettings() {
+  document.getElementById('togSound').className = 'toggle' + (settings.sound ? ' on' : '');
+  document.getElementById('togUrls').className = 'toggle' + (settings.urls ? ' on' : '');
+  document.getElementById('togSimple').className = 'toggle' + (settings.simple ? ' on' : '');
+  document.getElementById('togCompact').className = 'toggle' + (settings.compact ? ' on' : '');
+}
+function togSetting(key) {
+  settings[key] = !settings[key];
+  saveSettings();
+  applySettings();
+  renderAll(null);
+}
+function toggleSettings() {
+  document.getElementById('settingsOverlay').classList.toggle('show');
+}
+
+// ── Theme ──
+function toggleTheme() {
+  const b = document.body;
+  b.dataset.theme = b.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.getElementById('tBtn').textContent = b.dataset.theme === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('neo-th', b.dataset.theme);
+  renderAll(null);
+}
+(function initTheme() {
+  const t = localStorage.getItem('neo-th') || (window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light');
+  document.body.dataset.theme = t;
+  document.getElementById('tBtn').textContent = t === 'dark' ? '☀️' : '🌙';
+})();
+
+// ── Sound ──
+function playAlertSound() {
+  if (!settings.sound) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine'; osc.frequency.value = 660;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.5);
+  } catch {}
+}
+
+// ── Tabs ──
+function buildTabs() {
+  const bar = document.getElementById('tabBar');
+  bar.innerHTML = Object.keys(TAB_MAP).map(name => {
+    const filter = TAB_MAP[name];
+    const targets = filter ? T.filter(x => filter.includes(x.group)) : T;
+    const count = targets.length;
+
+    // tab health dot
+    let worst = 'fast';
+    for (const t of targets) {
+      const h = H[t.id] || []; const last = h[h.length - 1];
+      if (!last) continue;
+      const s = severity(last.response_time_ms, last.error);
+      if (s === 'critical') { worst = 'critical'; break; }
+      if ((s === 'slow' || s === 'elevated') && worst === 'fast') worst = s;
+    }
+    const dotColor = severityColor(worst);
+    const healthDot = count > 0 && checkCount > 0 ? `<span class="tab-health" style="background:${dotColor}"></span>` : '';
+
+    return `<button class="tab${name===activeTab?' on':''}" onclick="switchTab('${name}')">${name}<span class="tab-ct">${count}</span>${healthDot}</button>`;
+  }).join('');
+}
+function switchTab(t) { activeTab = t; buildTabs(); renderContent(); }
+
+// ── Card toggle ──
+function togCard(id) {
+  const el = document.getElementById('c-' + id);
+  if (el) el.classList.toggle('open');
+  const h = H[id] || []; const last = h[h.length - 1];
+  drawSparkline(id, h, last ? severity(last.response_time_ms, last.error) : 'unknown');
+}
+function tipTap(ev) {
+  const p = ev.currentTarget;
+  document.querySelectorAll('.pill.show-tip').forEach(x => x.classList.remove('show-tip'));
+  p.classList.toggle('show-tip');
+  setTimeout(() => p.classList.remove('show-tip'), 2500);
+}
+
+// ═══ Browser check ═══
+async function browserCheck(url) {
+  const t0 = performance.now();
+  try {
+    const ac = new AbortController();
+    const to = setTimeout(() => ac.abort(), TIMEOUT);
+    await fetch(url, { mode: 'no-cors', cache: 'no-store', signal: ac.signal });
+    clearTimeout(to);
+    return { status_code: 0, response_time_ms: Math.round(performance.now() - t0), error: null, timestamp: Date.now(), region };
+  } catch (e) {
+    return { status_code: 0, response_time_ms: Math.round(performance.now() - t0), error: e.name === 'AbortError' ? 'Timeout' : e.message, timestamp: Date.now(), region };
+  }
+}
+
+// ═══ Run all checks ═══
+async function run() {
+  countdown = INTERVAL / 1000;
+  let dns = null;
+
+  if (serverMode) {
+    try {
+      const r = await fetch('/api/check-all');
+      const d = await r.json();
+      dns = d.dns;
+      for (const t of T) {
+        if (!H[t.id]) H[t.id] = [];
+        if (d.checks[t.id]) {
+          // detect status change for sound (critical groups only)
+          const oldH = H[t.id]; const oldLast = oldH[oldH.length - 1];
+          const oldSev = oldLast ? severity(oldLast.response_time_ms, oldLast.error) : 'unknown';
+          const newSev = severity(d.checks[t.id].response_time_ms, d.checks[t.id].error);
+          if (isCriticalTarget(t) && oldSev !== 'critical' && newSev === 'critical') playAlertSound();
+
+          H[t.id].push(d.checks[t.id]);
+          if (H[t.id].length > MAX_HIST) H[t.id] = H[t.id].slice(-MAX_HIST);
+        }
+      }
+    } catch {
+      // fallback to browser
+      await Promise.all(T.map(async t => {
+        if (!H[t.id]) H[t.id] = [];
+        const r = await browserCheck(t.url);
+        H[t.id].push(r);
+        if (H[t.id].length > MAX_HIST) H[t.id] = H[t.id].slice(-MAX_HIST);
+      }));
+    }
+  } else {
+    await Promise.all(T.map(async t => {
+      if (!H[t.id]) H[t.id] = [];
+      const oldH = H[t.id]; const oldLast = oldH[oldH.length - 1];
+      const oldSev = oldLast ? severity(oldLast.response_time_ms, oldLast.error) : 'unknown';
+
+      const r = await browserCheck(t.url);
+      const newSev = severity(r.response_time_ms, r.error);
+      if (isCriticalTarget(t) && oldSev !== 'critical' && newSev === 'critical') playAlertSound();
+
+      H[t.id].push(r);
+      if (H[t.id].length > MAX_HIST) H[t.id] = H[t.id].slice(-MAX_HIST);
+    }));
+  }
+
+  checkCount++;
+  save();
+  renderAll(dns);
+  document.getElementById('lu').textContent = 'Updated ' + fTime(Date.now());
+}
+
+// ── CSV export ──
+function dlCSV() {
+  if (serverMode) { window.open('/api/download-log'); return; }
+  let r = 'timestamp,id,label,url,group,status_code,ms,error,region,severity\n';
+  for (const t of T) {
+    for (const c of (H[t.id] || [])) {
+      const sev = severity(c.response_time_ms, c.error);
+      r += `${new Date(c.timestamp).toISOString()},${t.id},"${t.label}",${t.url},${t.group||''},${c.status_code||0},${c.response_time_ms},${(c.error||'').replace(/,/g,';')},${c.region||region},${sev}\n`;
+    }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([r], { type: 'text/csv' }));
+  a.download = 'kesh-monitoring-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+}
+
+// ═══════════════════════════════
+//  RENDER
+// ═══════════════════════════════
+
+function renderAll(dns) {
+  renderHero(dns);
+  buildTabs();
+  renderContent();
+  renderLog();
+}
+
+function renderHero(dns) {
+  // ── Count ALL services for the stat boxes ──
+  let totalUp = 0, totalSlow = 0, totalDown = 0;
+  for (const t of T) {
+    const h = H[t.id] || []; const last = h[h.length - 1];
+    if (!last) continue;
+    const sev = severity(last.response_time_ms, last.error);
+    if (sev === 'fast') totalUp++;
+    else if (sev === 'elevated' || sev === 'slow') totalSlow++;
+    else totalDown++;
+  }
+
+  // ── Banner status: ONLY from critical groups (Sentec + eInvoice) ──
+  let worst = checkCount === 0 ? 'unknown' : 'fast';
+  let critOk = 0, critTotal = 0, critUptimeOk = 0, critUptimeAll = 0;
+  let extIssues = 0;
+
+  for (const t of T) {
+    const h = H[t.id] || []; const last = h[h.length - 1];
+    if (!last) continue;
+    const sev = severity(last.response_time_ms, last.error);
+
+    if (isCriticalTarget(t)) {
+      // These drive the banner
+      critTotal++;
+      if (sev === 'fast' || sev === 'elevated') critOk++;
+      if (sev === 'critical') worst = 'critical';
+      else if (sev === 'slow' && worst !== 'critical') worst = 'slow';
+      else if (sev === 'elevated' && worst === 'fast') worst = 'elevated';
+      // uptime calc for critical only
+      for (const c of h) {
+        critUptimeAll++;
+        if (!c.error && c.response_time_ms < TH_RED) critUptimeOk++;
+      }
+    } else {
+      // External — track issues but don't affect banner
+      if (sev === 'critical' || sev === 'slow') extIssues++;
+    }
+  }
+
+  const uptimePct = critUptimeAll > 0 ? ((critUptimeOk / critUptimeAll) * 100).toFixed(1) : '—';
+
+  const hero = document.getElementById('hero');
+  hero.className = 'hero ' + (worst === 'fast' ? 'ok' : worst === 'critical' ? 'bad' : 'warn');
+
+  document.getElementById('heroIcon').textContent = { fast: '✓', elevated: '⚠', slow: '⚠', critical: '✕', unknown: '…' }[worst] || '…';
+
+  // ── Calmer, more specific banner messages ──
+  const titles = {
+    fast: 'All Core Systems Operational',
+    elevated: 'Minor Slowness on Some Core Services',
+    slow: 'Core Services Running Slower Than Normal',
+    critical: 'Core Service Issue Detected',
+    unknown: 'Running Initial Checks…',
+  };
+  const descs = {
+    fast: extIssues > 0
+      ? `Sentec & eInvoice systems are running fine. ${extIssues} external service${extIssues>1?'s':''} (3rd-party) showing issues — not under our control.`
+      : 'All Sentec and eInvoice systems are responding normally.',
+    elevated: 'Some core services are slightly slower than usual. Monitoring closely.',
+    slow: 'Sentec or eInvoice services are experiencing delays. Please check the affected endpoints below.',
+    critical: 'A Sentec or eInvoice service is not responding. See details below for which one.',
+    unknown: 'Please wait while we check all endpoints…',
+  };
+
+  document.getElementById('heroTitle').textContent = titles[worst] || 'Checking…';
+  document.getElementById('heroDesc').textContent = descs[worst] || '';
+
+  document.getElementById('hsTotal').textContent = T.length;
+  document.getElementById('hsUp').textContent = totalUp;
+  document.getElementById('hsSlow').textContent = totalSlow;
+  document.getElementById('hsDown').textContent = totalDown;
+  document.getElementById('hsUptime').textContent = uptimePct !== '—' ? uptimePct + '%' : '—';
+  document.getElementById('hsChecks').textContent = checkCount;
+
+  // color the uptime number
+  const uptimeEl = document.getElementById('hsUptime');
+  const uptimeNum = parseFloat(uptimePct);
+  if (!isNaN(uptimeNum)) {
+    uptimeEl.style.color = uptimeNum >= 99 ? 'var(--green)' : uptimeNum >= 95 ? 'var(--amber)' : 'var(--red)';
+  }
+
+  // DNS
+  if (dns) {
+    const dnsEl = document.getElementById('dnsBar');
+    dnsEl.style.display = 'flex';
+    dnsEl.innerHTML = '<b style="color:var(--t2)">DNS Resolution:</b>' +
+      Object.entries(dns).map(([domain, v]) => {
+        const sev = v.error ? 'critical' : v.resolve_ms > 200 ? 'slow' : 'fast';
+        const c = severityColor(sev);
+        return `<span style="display:inline-flex;align-items:center;gap:4px"><span style="color:${c}">●</span>${domain} <b style="color:${c}">${v.resolve_ms} ms</b></span>`;
+      }).join('');
+  }
+}
+
+function renderContent() {
+  const ct = document.getElementById('ct');
+  ct.innerHTML = '';
+  const filter = TAB_MAP[activeTab];
+  const groups = [...new Set(T.map(t => t.group))].filter(g => !filter || filter.includes(g));
+
+  for (const g of groups) {
+    const groupTargets = T.filter(t => t.group === g);
+
+    // group health summary
+    let groupUp = 0, groupTotal = groupTargets.length, groupWorst = 'fast';
+    for (const t of groupTargets) {
+      const h = H[t.id] || []; const last = h[h.length - 1];
+      if (!last) continue;
+      const sev = severity(last.response_time_ms, last.error);
+      if (sev === 'fast') groupUp++;
+      if (sev === 'critical') groupWorst = 'critical';
+      else if ((sev === 'slow' || sev === 'elevated') && groupWorst === 'fast') groupWorst = sev;
+    }
+    const groupColor = severityColor(groupWorst);
+    const groupText = groupUp === groupTotal && checkCount > 0 ? 'All healthy' : checkCount > 0 ? `${groupUp}/${groupTotal} healthy` : 'Checking…';
+
+    const isExternal = !CRITICAL_GROUPS.includes(g);
+    let html = `<div class="grp">
+      <div class="grp-hd">
+        <div class="grp-l">${g}${isExternal ? ' <span style="font-size:9px;background:var(--sf3);color:var(--t3);padding:2px 7px;border-radius:4px;margin-left:6px;letter-spacing:.04em;font-weight:600;vertical-align:middle">EXTERNAL</span>' : ' <span style="font-size:9px;background:var(--green-bg);color:var(--green);padding:2px 7px;border-radius:4px;margin-left:6px;letter-spacing:.04em;font-weight:600;vertical-align:middle">CORE</span>'}</div>
+        <div class="grp-health"><span class="grp-health-dot" style="background:${groupColor}"></span><span style="color:${groupColor}">${groupText}</span></div>
+      </div>`;
+
+    for (const t of groupTargets) {
+      const h = H[t.id] || [];
+      const last = h[h.length - 1];
+      const sev = last ? severity(last.response_time_ms, last.error) : 'unknown';
+      const color = severityColor(sev);
+      const vals = h.filter(x => !x.error).map(x => x.response_time_ms);
+      const avg = vals.length ? Math.round(vals.reduce((a, b) => a + b) / vals.length) : null;
+
+      // uptime percentage for this endpoint
+      const upChecks = h.filter(x => !x.error && x.response_time_ms < TH_RED).length;
+      const upPct = h.length ? ((upChecks / h.length) * 100).toFixed(1) : '—';
+
+      // uptime bar
+      let barHtml = '';
+      const slots = 50;
+      const step = Math.max(1, Math.floor(h.length / slots));
+      for (let i = 0; i < slots; i++) {
+        const slice = h.slice(i * step, (i + 1) * step);
+        let slotSev = 'unknown';
+        if (slice.length) {
+          const sevs = slice.map(x => severity(x.response_time_ms, x.error));
+          if (sevs.includes('critical')) slotSev = 'critical';
+          else if (sevs.includes('slow')) slotSev = 'slow';
+          else if (sevs.includes('elevated')) slotSev = 'elevated';
+          else slotSev = 'fast';
+        }
+        const slotColor = severityColor(slotSev);
+        const tip = slice.length
+          ? `${fTime(slice[0].timestamp)} — ${friendlyStatus(slotSev)} · avg ${fMs(Math.round(slice.reduce((a,x) => a + x.response_time_ms, 0) / slice.length))}`
+          : 'No data yet';
+        barHtml += `<span style="background:${slotColor};opacity:${slotSev==='unknown'?.2:.85}" title="${tip}"></span>`;
+      }
+
+      const showUrl = settings.urls;
+      const isSimple = settings.simple;
+
+      html += `<div class="ep ${cardClass(sev)}" id="c-${t.id}">
+        <div class="ep-main" onclick="togCard('${t.id}')">
+          <div class="ep-row1">
+            <div class="ep-left">
+              <span class="ep-dot ${dotClass(sev)}"></span>
+              <span class="ep-name">${t.label}</span>
+              <span class="ep-badge" style="background:${color}18;color:${color}">${friendlyBadge(sev)}</span>
+            </div>
+            <div class="ep-right">
+              <div class="ep-metric">
+                <div class="ep-metric-val ${latencyClass(sev)}">${last ? fMs(last.response_time_ms) : '—'}</div>
+                <div class="ep-metric-lbl">Response</div>
+              </div>
+              ${!isSimple ? `<div class="ep-metric">
+                <div class="ep-metric-val" style="font-size:16px;color:${last && last.status_code >= 200 && last.status_code < 400 ? severityColor('fast') : last && last.status_code ? severityColor('critical') : 'var(--t3)'}">${serverMode ? (last ? (last.status_code || '—') : '—') : '·'}</div>
+                <div class="ep-metric-lbl">HTTP</div>
+              </div>` : ''}
+              <div class="ep-metric">
+                <div class="ep-metric-val" style="font-size:16px;color:${parseFloat(upPct)>=99?'var(--green)':parseFloat(upPct)>=95?'var(--amber)':'var(--red)'}">${upPct}${upPct !== '—' ? '%' : ''}</div>
+                <div class="ep-metric-lbl">Uptime</div>
+              </div>
+            </div>
+          </div>
+          <div class="ep-status-line">
+            <span class="friendly" style="color:${color}">${friendlyStatus(sev)}</span>
+            ${t.desc && !isSimple ? `<span>· ${t.desc}</span>` : ''}
+          </div>
+          ${showUrl ? `<div class="ep-url">${t.url}</div>` : ''}
+          <div class="ub-w">
+            <div class="ub-label"><span>${h.length ? fTime(h[0].timestamp) : '—'}</span><span>Now</span></div>
+            <div class="ub">${barHtml}</div>
+          </div>
+          <div class="ep-expand">tap for details ▾</div>
+        </div>
+        <div class="ep-detail"><div class="ep-detail-inner">
+          <div class="spark-wrap">
+            <div class="spark-title">Response time trend</div>
+            <canvas class="spark" id="cv-${t.id}"></canvas>
+          </div>
+          <div class="stats">${vals.length ?
+            `<span class="pill" tabindex="0" data-tip="Average response time across all checks" onclick="tipTap(event)"><span class="pill-icon">⌀</span> avg <b>${fMs(avg)}</b></span>` +
+            `<span class="pill" tabindex="0" data-tip="Fastest response recorded" onclick="tipTap(event)"><span class="pill-icon">⚡</span> min <b>${fMs(Math.min(...vals))}</b></span>` +
+            `<span class="pill" tabindex="0" data-tip="Slowest response recorded" onclick="tipTap(event)"><span class="pill-icon">🐢</span> max <b>${fMs(Math.max(...vals))}</b></span>` +
+            `<span class="pill" tabindex="0" data-tip="95th percentile — 95% of checks are faster than this" onclick="tipTap(event)"><span class="pill-icon">📊</span> p95 <b>${fMs(p95(vals))}</b></span>` +
+            `<span class="pill" tabindex="0" data-tip="Total number of checks performed" onclick="tipTap(event)"><span class="pill-icon">🔢</span> checks <b>${h.length}</b></span>` :
+            '<span class="pill">Collecting data…</span>'}</div>
+        </div></div>
+      </div>`;
+    }
+    html += '</div>';
+    ct.innerHTML += html;
+
+    // render sparklines for open cards
+    for (const t of groupTargets) {
+      const el = document.getElementById('c-' + t.id);
+      if (el && el.classList.contains('open')) {
+        const h2 = H[t.id] || []; const l2 = h2[h2.length - 1];
+        drawSparkline(t.id, h2, l2 ? severity(l2.response_time_ms, l2.error) : 'unknown');
+      }
+    }
+  }
+}
+
+function drawSparkline(id, checks, sev) {
+  const cv = document.getElementById('cv-' + id);
+  if (!cv || !cv.offsetParent) return;
+  const ctx = cv.getContext('2d');
+  const dp = devicePixelRatio || 1;
+  const rc = cv.getBoundingClientRect();
+  cv.width = rc.width * dp; cv.height = rc.height * dp;
+  ctx.scale(dp, dp);
+  const W = rc.width, HH = rc.height;
+  ctx.clearRect(0, 0, W, HH);
+  if (checks.length < 2) return;
+
+  const ts = checks.map(c => c.error ? null : c.response_time_ms);
+  const validTs = ts.filter(t => t !== null);
+  if (!validTs.length) return;
+  const mx = Math.max(TH_GREEN, ...validTs) * 1.15;
+  const lineColor = severityColor(sev);
+
+  // threshold lines
+  ctx.setLineDash([4, 4]);
+  ctx.lineWidth = 1;
+  // green threshold
+  const greenY = HH - (TH_GREEN / mx) * (HH - 8);
+  ctx.beginPath(); ctx.moveTo(0, greenY); ctx.lineTo(W, greenY);
+  ctx.strokeStyle = severityColor('fast') + '30'; ctx.stroke();
+  // amber threshold
+  if (TH_AMBER < mx) {
+    const amberY = HH - (TH_AMBER / mx) * (HH - 8);
+    ctx.beginPath(); ctx.moveTo(0, amberY); ctx.lineTo(W, amberY);
+    ctx.strokeStyle = severityColor('elevated') + '30'; ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // data line
+  let pts = [];
+  for (let i = 0; i < ts.length; i++) {
+    if (ts[i] === null) continue;
+    pts.push({ x: (i / (ts.length - 1)) * W, y: 4 + (HH - 8) - (ts[i] / mx) * (HH - 8) });
+  }
+  if (pts.length > 1) {
+    // fill
+    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.lineTo(pts[pts.length - 1].x, HH); ctx.lineTo(pts[0].x, HH); ctx.closePath();
+    const gr = ctx.createLinearGradient(0, 0, 0, HH);
+    gr.addColorStop(0, lineColor + '30'); gr.addColorStop(1, lineColor + '05');
+    ctx.fillStyle = gr; ctx.fill();
+    // stroke
+    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.strokeStyle = lineColor; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+
+    // color-coded dots for each point
+    for (const p of pts) {
+      const pMs = checks[Math.round((p.x / W) * (checks.length - 1))];
+      if (!pMs) continue;
+      const pSev = severity(pMs.response_time_ms, pMs.error);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = severityColor(pSev);
+      ctx.fill();
+    }
+  }
+}
+
+function renderLog() {
+  const all = [];
+  for (const t of T) {
+    for (const c of (H[t.id] || []).slice(-4)) {
+      all.push({ ...c, label: t.label, desc: t.desc });
+    }
+  }
+  all.sort((a, b) => b.timestamp - a.timestamp);
+  document.getElementById('lCt').textContent = all.length + ' entries';
+  if (!all.length) return;
+
+  document.getElementById('lL').innerHTML = all.slice(0, 60).map(c => {
+    const sev = severity(c.response_time_ms, c.error);
+    const color = severityColor(sev);
+    return `<div class="lr">
+      <span class="lr-d" style="background:${color}"></span>
+      <span class="lr-t">${fTime(c.timestamp)}</span>
+      <span class="lr-n">${c.label}</span>
+      <span class="lr-friendly" style="color:${color}">${friendlyBadge(sev)}</span>
+      ${!settings.simple ? `<span class="lr-c" style="color:${serverMode && c.status_code >= 200 && c.status_code < 400 ? severityColor('fast') : serverMode && c.status_code ? severityColor('critical') : 'var(--t3)'}">${serverMode ? (c.status_code || '·') : '·'}</span>` : ''}
+      <span class="lr-m ${latencyClass(sev)}">${fMs(c.response_time_ms)}</span>
+      ${c.error ? `<span class="lr-e" title="${c.error}">${c.error}</span>` : ''}
+      <span class="lr-g">${c.region || region}</span>
+    </div>`;
+  }).join('');
+}
+
+// ═══ Init ═══
+async function init() {
+  loadSettings();
+
+  try {
+    const r = await fetch('/api/targets');
+    const d = await r.json();
+    T = d.targets;
+    region = d.region;
+    serverMode = true;
+    document.getElementById('mTag').textContent = 'SERVER MODE';
+    document.getElementById('mTag').className = 'tag tag-server';
+  } catch {
+    T = TARGETS_FALLBACK;
+    serverMode = false;
+    region = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Browser';
+    document.getElementById('mTag').textContent = 'BROWSER MODE';
+    document.getElementById('mTag').className = 'tag tag-browser';
+  }
+
+  // add desc from fallback if missing
+  for (const t of T) {
+    if (!t.desc) {
+      const fb = TARGETS_FALLBACK.find(f => f.id === t.id);
+      if (fb) t.desc = fb.desc;
+    }
+  }
+
+  document.getElementById('rTag').textContent = region;
+  load();
+  buildTabs();
+  renderAll(null);
+  run();
+
+  setInterval(() => {
+    countdown--;
+    const cdEl = document.getElementById('cd');
+    cdEl.textContent = countdown > 0 ? countdown + 's' : '…';
+    if (countdown <= 0) { run(); countdown = INTERVAL / 1000; }
+  }, 1000);
+}
+
+init();
+</script>
+</body>
+</html>
