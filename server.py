@@ -76,12 +76,15 @@ TARGETS = [
     {"id":"my-lhdn","label":"LHDN (Hasil)","url":"https://www.hasil.gov.my","group":"Malaysia","desc":"Malaysian tax authority"},
     {"id":"my-gov","label":"MyGov","url":"https://www.malaysia.gov.my","group":"Malaysia","desc":"Government portal"},
     {"id":"my-bank","label":"Maybank","url":"https://www.maybank2u.com.my","group":"Malaysia","desc":"Online banking"},
+    # ── Car Park (Whizcity) ──
+    {"id":"cp-cloud","label":"Whizcity Cloud","url":"https://portal.whizcity.my","group":"Car Park","desc":"Whizcity cloud parking portal"},
+    {"id":"cp-cloud-api","label":"Parking API","url":"https://portal.whizcity.my/discount/app/login","group":"Car Park","desc":"Cloud validation API endpoint"},
     # ── Global ──
     {"id":"gl-google","label":"Google","url":"https://www.google.com","group":"Global","desc":"Reference baseline"},
     {"id":"gl-cf","label":"Cloudflare","url":"https://www.cloudflare.com","group":"Global","desc":"CDN/DNS baseline"},
 ]
 
-DNS_PROBES = ["pms.sentec.io", "google.com", "api.myinvois.hasil.gov.my"]
+DNS_PROBES = ["pms.sentec.io", "google.com", "api.myinvois.hasil.gov.my", "portal.whizcity.my"]
 
 ssl_ctx = ssl.create_default_context()
 ssl_ctx.check_hostname = False

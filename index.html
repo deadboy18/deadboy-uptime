@@ -620,6 +620,10 @@ const TARGETS_FALLBACK = [
 {id:"my-lhdn",label:"LHDN (Hasil)",url:"https://www.hasil.gov.my",group:"Malaysia",desc:"Malaysian tax authority"},
 {id:"my-gov",label:"MyGov",url:"https://www.malaysia.gov.my",group:"Malaysia",desc:"Government portal"},
 {id:"my-bank",label:"Maybank",url:"https://www.maybank2u.com.my",group:"Malaysia",desc:"Online banking — blocks browser checks (use server mode)"},
+// ── Car Park (Whizcity) ──
+{id:"cp-cloud",label:"Whizcity Cloud",url:"https://portal.whizcity.my",group:"Car Park",desc:"Whizcity cloud parking portal"},
+{id:"cp-cloud-api",label:"Parking API",url:"https://portal.whizcity.my/discount/app/login",group:"Car Park",desc:"Cloud validation API endpoint"},
+// ── Global ──
 {id:"gl-google",label:"Google",url:"https://www.google.com",group:"Global",desc:"Reference baseline"},
 {id:"gl-cf",label:"Cloudflare",url:"https://www.cloudflare.com",group:"Global",desc:"CDN/DNS baseline"},
 ];
@@ -631,6 +635,7 @@ const TAB_MAP = {
   'Bookings':['Bookings'],
   'Social':['Social'],
   'F&B':['F&B'],
+  'Car Park':['Car Park'],
   'Malaysia':['Malaysia'],
   'Global':['Global'],
 };
@@ -639,7 +644,7 @@ const TAB_MAP = {
 // Only YOUR systems. External sites (Booking.com, Facebook, etc.) are
 // reference checks — they still show traffic-light colors on their cards
 // but won't turn the hero banner red or trigger alarm sounds.
-const CRITICAL_GROUPS = ['Sentec', 'eInvoice Prod', 'eInvoice Sandbox'];
+const CRITICAL_GROUPS = ['Sentec', 'eInvoice Prod', 'eInvoice Sandbox', 'Car Park'];
 
 function isCriticalTarget(t) {
   return CRITICAL_GROUPS.includes(t.group);
@@ -719,9 +724,69 @@ function p95(arr) {
   return s[Math.floor(s.length * 0.95)];
 }
 
+// ── Persistent CSV log URL ──
+// Set this to your repo's raw CSV URL to load history from GitHub Actions logs.
+// Leave empty ('') to skip. History loads once on page load, then live checks continue.
+const CSV_LOG_URL = 'https://raw.githubusercontent.com/deadboy18/deadboy-uptime/main/logs/checks.csv';
+const CSV_MAX_LOAD = 2000; // max rows to load from CSV (most recent)
+
 // ── Persistence ──
 function save() { try { localStorage.setItem('neo5', JSON.stringify({ H, checkCount })); } catch {} }
 function load() { try { const d = JSON.parse(localStorage.getItem('neo5')); if (d) { H = d.H || {}; checkCount = d.checkCount || 0; } } catch {} }
+
+async function loadCSVHistory() {
+  if (!CSV_LOG_URL) return;
+  try {
+    const r = await fetch(CSV_LOG_URL + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    const text = await r.text();
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) return;
+
+    // Parse header
+    const hdr = lines[0].split(',');
+    const idx = {};
+    hdr.forEach((col, i) => idx[col.trim()] = i);
+
+    // Take only the most recent CSV_MAX_LOAD rows
+    const dataLines = lines.slice(Math.max(1, lines.length - CSV_MAX_LOAD));
+    let loaded = 0;
+
+    for (const line of dataLines) {
+      const cols = line.split(',');
+      if (cols.length < 6) continue;
+      const id = cols[idx.id];
+      const ms = parseInt(cols[idx.ms]);
+      const status = parseInt(cols[idx.status] || '0');
+      const err = cols[idx.error] || '';
+      const ts = cols[idx.timestamp_utc];
+      if (!id || isNaN(ms)) continue;
+
+      if (!H[id]) H[id] = [];
+      H[id].push({
+        status_code: status,
+        response_time_ms: ms,
+        error: err || null,
+        timestamp: new Date(ts).getTime(),
+        region: cols[idx.region] || 'GitHub-Actions',
+      });
+      loaded++;
+    }
+
+    // Trim and sort each endpoint's history
+    for (const id of Object.keys(H)) {
+      H[id].sort((a, b) => a.timestamp - b.timestamp);
+      if (H[id].length > MAX_HIST) H[id] = H[id].slice(-MAX_HIST);
+    }
+
+    if (loaded > 0) {
+      checkCount = Math.max(checkCount, 1);
+      console.log(`📡 Loaded ${loaded} rows from GitHub CSV logs`);
+    }
+  } catch (e) {
+    console.warn('CSV history load skipped:', e.message);
+  }
+}
 function loadSettings() {
   try {
     const s = JSON.parse(localStorage.getItem('neo5-settings'));
@@ -1253,6 +1318,8 @@ async function init() {
 
   document.getElementById('rTag').textContent = region;
   load();
+  await loadCSVHistory();  // merge GitHub Actions logs (if URL is set)
+  save();                  // persist merged data to localStorage
   buildTabs();
   renderAll(null);
   run();

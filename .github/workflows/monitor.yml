@@ -1,0 +1,43 @@
+# Kesh Monitoring — Scheduled Check Logger
+# Runs every 30 minutes, checks all endpoints, appends to logs/checks.csv
+# Logs persist in Git — no browser storage needed.
+#
+# Setup:
+#   1. Copy this file to .github/workflows/monitor.yml in your repo
+#   2. Enable GitHub Pages (Settings → Pages → main branch)
+#   3. That's it — Actions will start on the next cron tick
+#
+# Note: Latency is measured from GitHub's servers (US), not from Penang.
+#       For local latency, use server.py on-site instead.
+
+name: Monitor Endpoints
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # Every 30 minutes
+  workflow_dispatch:          # Manual trigger from Actions tab
+
+permissions:
+  contents: write            # Needed to commit CSV back to repo
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run checks and append CSV
+        run: python .github/scripts/run_checks.py
+
+      - name: Commit logs
+        run: |
+          git config user.name "kesh-monitor-bot"
+          git config user.email "monitor@noreply.github.com"
+          git add logs/checks.csv
+          # Only commit if there are changes
+          git diff --cached --quiet || git commit -m "📡 monitor: $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push
