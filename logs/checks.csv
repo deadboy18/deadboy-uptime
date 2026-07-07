@@ -559,3 +559,38 @@ timestamp_utc,id,label,url,group,status,ms,error,region,severity
 2026-07-07T20:23:50Z,isp-maxis,Maxis,https://www.maxis.com.my,Malaysia,200,2015,,GitHub-Actions,slow
 2026-07-07T20:23:50Z,isp-tm,TM / Unifi,https://www.unifi.com.my,Malaysia,200,2432,,GitHub-Actions,slow
 2026-07-07T20:23:50Z,my-bank,Maybank,https://www.maybank2u.com.my,Malaysia,0,12256,The read operation timed out,GitHub-Actions,critical
+2026-07-07T21:51:06Z,finance,Finance,https://finance.sentec.io,Sentec,200,320,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,pms,PMS,https://pms.sentec.io,Sentec,200,417,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,ems,EMS,https://ems.sentec.io,Sentec,200,416,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,pos,POS,https://pos.sentec.io,Sentec,200,478,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,cp-cloud,Whizcity Cloud,https://portal.whizcity.my,Car Park,200,560,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,ems-emp,EMS Employees,https://employees.ems.sentec.io,Sentec,200,565,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,ota-agoda,Agoda,https://www.agoda.com,Bookings,200,160,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,ota-expedia,Expedia,https://www.expedia.com.my,Bookings,429,140,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,ota-booking,Booking.com,https://www.booking.com,Bookings,202,267,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,einv-api,e-Invoice API,https://api.myinvois.hasil.gov.my,eInvoice Prod,404,721,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,einv-portal-pp,Portal (Sandbox),https://preprod.myinvois.hasil.gov.my,eInvoice Sandbox,200,739,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,einv-id,e-Invoice Identity,https://identity.myinvois.hasil.gov.my,eInvoice Prod,404,749,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,einv-id-pp,Identity (Sandbox),https://preprod-identity.myinvois.hasil.gov.my,eInvoice Sandbox,404,760,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,einv-portal,e-Invoice Portal,https://myinvois.hasil.gov.my,eInvoice Prod,200,765,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,ota-airbnb,Airbnb,https://www.airbnb.com,Bookings,200,263,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,cp-cloud-api,Parking API,https://portal.whizcity.my/discount/app/login,Car Park,405,527,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,soc-ig,Instagram,https://www.instagram.com,Social,200,293,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,soc-fb,Facebook,https://www.facebook.com,Social,200,370,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,isp-time,TIME dotCom,https://www.time.com.my,Malaysia,403,40,,GitHub-Actions,fast
+2026-07-07T21:51:06Z,soc-tt,TikTok,https://www.tiktok.com,Social,200,271,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,soc-ta,TripAdvisor,https://www.tripadvisor.com.my,Social,403,234,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,isp-digi,CelcomDigi,https://www.celcomdigi.com,Malaysia,200,241,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,soc-wa,WhatsApp Web,https://web.whatsapp.com,Social,200,417,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,gl-google,Google,https://www.google.com,Global,200,73,,GitHub-Actions,fast
+2026-07-07T21:51:06Z,einv-api-pp,API (Sandbox),https://preprod-api.myinvois.hasil.gov.my,eInvoice Sandbox,404,1275,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,ota-trip,Trip.com,https://www.trip.com,Bookings,200,844,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,gl-cf,Cloudflare,https://www.cloudflare.com,Global,200,281,,GitHub-Actions,elevated
+2026-07-07T21:51:06Z,fnb-grab,GrabFood,https://food.grab.com,F&B,200,763,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,fnb-panda,foodpanda,https://www.foodpanda.my,F&B,200,1222,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,isp-maxis,Maxis,https://www.maxis.com.my,Malaysia,200,1168,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,my-gov,MyGov,https://www.malaysia.gov.my,Malaysia,200,1271,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,isp-tm,TM / Unifi,https://www.unifi.com.my,Malaysia,200,1535,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,my-lhdn,LHDN (Hasil),https://www.hasil.gov.my,Malaysia,200,1403,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,isp-umob,U Mobile,https://www.u.com.my,Malaysia,200,1588,,GitHub-Actions,slow
+2026-07-07T21:51:06Z,my-bank,Maybank,https://www.maybank2u.com.my,Malaysia,0,12082,The read operation timed out,GitHub-Actions,critical
