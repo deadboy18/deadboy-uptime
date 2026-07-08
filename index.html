@@ -592,7 +592,9 @@ const TH_AMBER  = 500;   // 100-499ms = amber
 const TH_RED    = 3000;  // 500-2999ms = red glow
                           // 3000ms+ or error = red blink (critical)
 const TIMEOUT   = 12000;
-const INTERVAL  = 30000;
+const INTERVAL_SERVER = 30000;  // 30s when server.py is running
+const INTERVAL_ACTIONS = 60000; // 60s when using Actions JSON
+let INTERVAL  = 30000;
 const MAX_HIST  = 200;
 
 // ── Targets (fallback for static hosting) ──
@@ -731,28 +733,46 @@ const HEALTH_KEY_LABELS = {
   parse: 'Response Parse',
 };
 
+// ── Health detail: find most recent entry with subsystem data ──
+function getLatestHealthDetail(targetId) {
+  const h = H[targetId] || [];
+  for (let i = h.length - 1; i >= 0; i--) {
+    const hd = h[i]._hd || h[i].health_detail;
+    if (hd && typeof hd === 'object') return { detail: hd, timestamp: h[i].timestamp };
+  }
+  // Also check the dedicated Actions data cache
+  if (latestHealthData[targetId] && latestHealthData[targetId].health_detail) {
+    return { detail: latestHealthData[targetId].health_detail, timestamp: new Date(latestHealthData[targetId].timestamp_utc).getTime() };
+  }
+  return null;
+}
+
 function inlineHealthSummary(target, lastCheck) {
-  if (!target.health || !lastCheck) return '';
-  const hd = lastCheck.health_detail || lastCheck._hd;
-  if (!hd || typeof hd !== 'object') return '';
-  const keys = Object.keys(hd);
-  const okCount = Object.values(hd).filter(v => v === '✅').length;
-  if (okCount === keys.length) return `<span style="color:var(--green);font-size:11px;font-family:var(--mono)">· ${okCount}/${keys.length} subsystems ✅</span>`;
-  return `<span style="color:var(--red);font-size:11px;font-family:var(--mono);font-weight:700">· ${okCount}/${keys.length} subsystems OK</span>`;
+  if (!target.health) return '';
+  const hInfo = getLatestHealthDetail(target.id);
+  if (!hInfo) return '<span style="color:var(--t3);font-size:11px;font-family:var(--mono)">· subsystem data pending…</span>';
+  const keys = Object.keys(hInfo.detail);
+  const okCount = Object.values(hInfo.detail).filter(v => v === '✅').length;
+  const age = Date.now() - hInfo.timestamp;
+  const ageStr = age < 60000 ? 'just now' : age < 3600000 ? Math.round(age/60000) + 'm ago' : Math.round(age/3600000) + 'h ago';
+  if (okCount === keys.length) return `<span style="color:var(--green);font-size:11px;font-family:var(--mono)">· ${okCount}/${keys.length} subsystems ✅ <span style="color:var(--mt)">(${ageStr})</span></span>`;
+  return `<span style="color:var(--red);font-size:11px;font-family:var(--mono);font-weight:700">· ${okCount}/${keys.length} subsystems OK <span style="color:var(--mt)">(${ageStr})</span></span>`;
 }
 
 function renderHealthDetail(target, lastCheck) {
-  if (!target.health || !lastCheck) return '';
-  const hd = lastCheck.health_detail || lastCheck._hd;
-  if (!hd || typeof hd !== 'object') return '';
+  if (!target.health) return '';
+  const hInfo = getLatestHealthDetail(target.id);
+  if (!hInfo) return '<div class="health-detail"><div class="health-detail-title">🔬 Subsystem Health</div><span style="color:var(--t3);font-size:12px">Waiting for server-side check (GitHub Actions runs every 30 min)…</span></div>';
+  const age = Date.now() - hInfo.timestamp;
+  const ageStr = age < 60000 ? 'just now' : age < 3600000 ? Math.round(age/60000) + ' min ago' : Math.round(age/3600000) + 'h ago';
   let pills = '';
-  for (const [key, val] of Object.entries(hd)) {
+  for (const [key, val] of Object.entries(hInfo.detail)) {
     const ok = val === '✅';
     const label = HEALTH_KEY_LABELS[key] || key.replace(/_/g, ' ');
     pills += `<span class="health-pill ${ok ? 'ok' : 'bad'}">${val} <span class="health-pill-key">${label}</span></span>`;
   }
   return `<div class="health-detail">
-    <div class="health-detail-title">🔬 Subsystem Health</div>
+    <div class="health-detail-title">🔬 Subsystem Health <span style="font-weight:400;color:var(--mt);text-transform:none;letter-spacing:0">· checked ${ageStr} via GitHub Actions</span></div>
     ${pills}
   </div>`;
 }
@@ -775,11 +795,65 @@ function p95(arr) {
 // Set this to your repo's raw CSV URL to load history from GitHub Actions logs.
 // Leave empty ('') to skip. History loads once on page load, then live checks continue.
 const CSV_LOG_URL = 'https://raw.githubusercontent.com/deadboy18/deadboy-uptime/main/logs/checks.csv';
+const LATEST_JSON_URL = 'https://raw.githubusercontent.com/deadboy18/deadboy-uptime/main/logs/latest.json';
 const CSV_MAX_LOAD = 2000; // max rows to load from CSV (most recent)
+
+// ── Latest health detail cache (from GitHub Actions) ──
+let latestHealthData = {};  // { endpointId: { health_detail, ms, timestamp_utc, ... } }
+let lastActionsTs = 0;      // timestamp of last processed Actions data
 
 // ── Persistence ──
 function save() { try { localStorage.setItem('neo5', JSON.stringify({ H, checkCount })); } catch {} }
 function load() { try { const d = JSON.parse(localStorage.getItem('neo5')); if (d) { H = d.H || {}; checkCount = d.checkCount || 0; } } catch {} }
+
+async function loadLatestJSON() {
+  if (!LATEST_JSON_URL) return false;
+  try {
+    const r = await fetch(LATEST_JSON_URL + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return false;
+    const data = await r.json();
+    if (!data.results) return false;
+
+    const dataTs = new Date(data.updated).getTime();
+    if (dataTs <= lastActionsTs) return true; // same data, still valid
+    lastActionsTs = dataTs;
+    latestHealthData = data.results;
+
+    // Inject ALL results into history
+    for (const [id, info] of Object.entries(data.results)) {
+      if (!H[id]) H[id] = [];
+      const exists = H[id].some(e => e.timestamp === dataTs);
+      if (!exists) {
+        const entry = {
+          status_code: info.status || 0,
+          response_time_ms: info.ms || 0,
+          error: info.error || null,
+          timestamp: dataTs,
+          region: data.region || 'GitHub-Actions',
+        };
+        if (info.health_detail) entry._hd = info.health_detail;
+
+        // Sound alert for critical transitions
+        const oldH = H[id]; const oldLast = oldH[oldH.length - 1];
+        const t = T.find(x => x.id === id);
+        if (t) {
+          const oldSev = oldLast ? severity(oldLast.response_time_ms, oldLast.error) : 'unknown';
+          const newSev = severity(entry.response_time_ms, entry.error);
+          if (isCriticalTarget(t) && oldSev !== 'critical' && newSev === 'critical') playAlertSound();
+        }
+
+        H[id].push(entry);
+        H[id].sort((a, b) => a.timestamp - b.timestamp);
+        if (H[id].length > MAX_HIST) H[id] = H[id].slice(-MAX_HIST);
+      }
+    }
+    console.log(`📡 Actions data: ${Object.keys(data.results).length} endpoints (${data.updated})`);
+    return true;
+  } catch (e) {
+    console.warn('Actions JSON fetch failed:', e.message);
+    return false;
+  }
+}
 
 async function loadCSVHistory() {
   if (!CSV_LOG_URL) return;
@@ -972,7 +1046,18 @@ async function run() {
         }
       }
     } catch {
-      // fallback to browser
+      // Server unreachable — try Actions JSON as fallback
+      await loadLatestJSON();
+    }
+  } else {
+    // ── Browser mode: use GitHub Actions data (no CORS errors) ──
+    // Actions does the real HTTP checks server-side every 10 min.
+    // The dashboard just displays those results.
+    const gotActions = await loadLatestJSON();
+
+    if (!gotActions && checkCount === 0) {
+      // First load and no Actions data yet — fall back to browser fetch
+      // (this only happens if latest.json doesn't exist yet)
       await Promise.all(T.map(async t => {
         if (!H[t.id]) H[t.id] = [];
         const r = await browserCheck(t.url);
@@ -980,25 +1065,20 @@ async function run() {
         if (H[t.id].length > MAX_HIST) H[t.id] = H[t.id].slice(-MAX_HIST);
       }));
     }
-  } else {
-    await Promise.all(T.map(async t => {
-      if (!H[t.id]) H[t.id] = [];
-      const oldH = H[t.id]; const oldLast = oldH[oldH.length - 1];
-      const oldSev = oldLast ? severity(oldLast.response_time_ms, oldLast.error) : 'unknown';
-
-      const r = await browserCheck(t.url);
-      const newSev = severity(r.response_time_ms, r.error);
-      if (isCriticalTarget(t) && oldSev !== 'critical' && newSev === 'critical') playAlertSound();
-
-      H[t.id].push(r);
-      if (H[t.id].length > MAX_HIST) H[t.id] = H[t.id].slice(-MAX_HIST);
-    }));
   }
 
   checkCount++;
   save();
   renderAll(dns);
-  document.getElementById('lu').textContent = 'Updated ' + fTime(Date.now());
+
+  // Update status text
+  if (!serverMode && lastActionsTs) {
+    const age = Date.now() - lastActionsTs;
+    const ageStr = age < 60000 ? 'just now' : age < 3600000 ? Math.round(age/60000) + 'm ago' : Math.round(age/3600000) + 'h ago';
+    document.getElementById('lu').textContent = 'Actions data · ' + ageStr;
+  } else {
+    document.getElementById('lu').textContent = 'Updated ' + fTime(Date.now());
+  }
 }
 
 // ── CSV export ──
@@ -1363,22 +1443,44 @@ async function init() {
     T = TARGETS_FALLBACK;
     serverMode = false;
     region = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Browser';
-    document.getElementById('mTag').textContent = 'BROWSER MODE';
-    document.getElementById('mTag').className = 'tag tag-browser';
   }
 
-  // add desc from fallback if missing
+  // add desc and health type from fallback if missing
   for (const t of T) {
-    if (!t.desc) {
-      const fb = TARGETS_FALLBACK.find(f => f.id === t.id);
-      if (fb) t.desc = fb.desc;
+    const fb = TARGETS_FALLBACK.find(f => f.id === t.id);
+    if (fb) {
+      if (!t.desc) t.desc = fb.desc;
+      if (!t.health && fb.health) t.health = fb.health;
     }
   }
 
   document.getElementById('rTag').textContent = region;
   load();
-  await loadCSVHistory();  // merge GitHub Actions logs (if URL is set)
-  save();                  // persist merged data to localStorage
+  await loadCSVHistory();    // merge GitHub Actions CSV logs
+
+  // In browser mode, try loading Actions JSON to determine mode
+  if (!serverMode) {
+    const gotActions = await loadLatestJSON();
+    if (gotActions) {
+      document.getElementById('mTag').textContent = 'ACTIONS MODE';
+      document.getElementById('mTag').className = 'tag tag-server';
+      region = 'GitHub-Actions';
+      document.getElementById('rTag').textContent = region;
+    } else {
+      document.getElementById('mTag').textContent = 'BROWSER MODE';
+      document.getElementById('mTag').className = 'tag tag-browser';
+    }
+  } else {
+    document.getElementById('mTag').textContent = 'SERVER MODE';
+    document.getElementById('mTag').className = 'tag tag-server';
+  }
+
+  save();                    // persist merged data to localStorage
+
+  // Set poll interval: faster for server mode, slower for Actions mode
+  INTERVAL = serverMode ? INTERVAL_SERVER : INTERVAL_ACTIONS;
+  countdown = INTERVAL / 1000;
+
   buildTabs();
   renderAll(null);
   run();

@@ -202,6 +202,26 @@ def main():
                          r["group"], r["status"], r["ms"], r["error"],
                          r["region"], r["severity"], r["health_detail"]])
 
+    # Write latest.json with ALL results — this is the primary data source
+    # for the browser-mode frontend (no CORS errors, server-side checks)
+    latest = {"updated": ts, "region": REGION, "results": {}}
+    for r in results:
+        entry = {
+            "status": r["status"],
+            "ms": r["ms"],
+            "error": r["error"] or None,
+            "severity": r["severity"],
+            "timestamp_utc": r["timestamp_utc"],
+        }
+        if r["health_detail"]:
+            try:
+                entry["health_detail"] = json.loads(r["health_detail"]) if isinstance(r["health_detail"], str) else r["health_detail"]
+            except (json.JSONDecodeError, ValueError):
+                pass
+        latest["results"][r["id"]] = entry
+    Path("logs/latest.json").write_text(json.dumps(latest))
+    print(f"  📋 latest.json: {len(latest['results'])} endpoints")
+
     # Print summary
     ok = sum(1 for r in results if r["severity"] == "fast")
     warn = sum(1 for r in results if r["severity"] in ("elevated", "slow"))
