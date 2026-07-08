@@ -7,6 +7,7 @@ Zero dependencies — uses only Python stdlib.
 
 import concurrent.futures
 import csv
+import json
 import os
 import socket
 import ssl
@@ -30,6 +31,9 @@ TARGETS = [
     {"id": "finance", "label": "Finance", "url": "https://finance.sentec.io", "group": "Sentec"},
     {"id": "ems", "label": "EMS", "url": "https://ems.sentec.io", "group": "Sentec"},
     {"id": "ems-emp", "label": "EMS Employees", "url": "https://employees.ems.sentec.io", "group": "Sentec"},
+    # ── Sentec Deep Health ──
+    {"id": "pms-health", "label": "PMS Web Health", "url": "https://apse1.pms.sentec.io/health.txt", "group": "Sentec", "health": "txt"},
+    {"id": "pms-api-health", "label": "PMS API Health", "url": "https://apse1.api.pms.sentec.io/health/", "group": "Sentec", "health": "json"},
     # ── eInvoice Prod ──
     {"id": "einv-api", "label": "e-Invoice API", "url": "https://api.myinvois.hasil.gov.my", "group": "eInvoice Prod"},
     {"id": "einv-portal", "label": "e-Invoice Portal", "url": "https://myinvois.hasil.gov.my", "group": "eInvoice Prod"},
@@ -105,6 +109,55 @@ def check_http(url, timeout=12):
         return {"status_code": 0, "response_time_ms": round((time.time() - start) * 1000), "error": str(e)[:120]}
 
 
+def check_health(target):
+    """Extended health check — parses response body for subsystem status."""
+    health_type = target.get("health")
+    if not health_type:
+        return check_http(target["url"])
+
+    url = target["url"]
+    start = time.time()
+    try:
+        req = urllib.request.Request(url, method="GET")
+        req.add_header("User-Agent", "KeshMonitor/5-GHA")
+        with urllib.request.urlopen(req, timeout=12, context=ssl_ctx) as resp:
+            body = resp.read(4096).decode("utf-8", errors="replace")
+            ms = round((time.time() - start) * 1000)
+            result = {"status_code": resp.status, "response_time_ms": ms, "error": None}
+
+            if health_type == "txt":
+                is_ok = "ok" in body.strip().lower()
+                result["health_detail"] = {"web": "\u2705" if is_ok else "\u274c"}
+                if not is_ok:
+                    result["error"] = f"health.txt returned: {body.strip()[:60]}"
+
+            elif health_type == "json":
+                try:
+                    data = json.loads(body)
+                    detail = {}
+                    all_ok = True
+                    for key, val in data.items():
+                        ok = val.strip() == "\u2705" if isinstance(val, str) else bool(val)
+                        detail[key] = "\u2705" if ok else "\u274c"
+                        if not ok:
+                            all_ok = False
+                    result["health_detail"] = detail
+                    if not all_ok:
+                        failed = [k for k, v in detail.items() if v == "\u274c"]
+                        result["error"] = f"Degraded: {', '.join(failed)}"
+                except (json.JSONDecodeError, ValueError):
+                    result["health_detail"] = {"parse": "\u274c"}
+                    result["error"] = f"Invalid health JSON: {body.strip()[:60]}"
+
+            return result
+    except urllib.error.HTTPError as e:
+        return {"status_code": e.code, "response_time_ms": round((time.time() - start) * 1000), "error": None}
+    except urllib.error.URLError as e:
+        return {"status_code": 0, "response_time_ms": round((time.time() - start) * 1000), "error": str(e.reason)[:120]}
+    except Exception as e:
+        return {"status_code": 0, "response_time_ms": round((time.time() - start) * 1000), "error": str(e)[:120]}
+
+
 def main():
     # Ensure logs directory and CSV header exist
     Path("logs").mkdir(exist_ok=True)
@@ -114,14 +167,15 @@ def main():
     now_utc = datetime.now(timezone.utc)
     ts = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # Run all checks in parallel
+    # Run all checks in parallel (using check_health for deep probes)
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
-        futures = {pool.submit(check_http, t["url"]): t for t in TARGETS}
+        futures = {pool.submit(check_health, t): t for t in TARGETS}
         for f in concurrent.futures.as_completed(futures):
             t = futures[f]
             r = f.result()
             sev = severity(r["response_time_ms"], r.get("error"))
+            hd = r.get("health_detail")
             results.append({
                 "timestamp_utc": ts,
                 "id": t["id"],
@@ -133,6 +187,7 @@ def main():
                 "error": r.get("error") or "",
                 "region": REGION,
                 "severity": sev,
+                "health_detail": json.dumps(hd) if hd else "",
             })
 
     # Append to CSV
@@ -140,11 +195,12 @@ def main():
         w = csv.writer(f)
         if write_header:
             w.writerow(["timestamp_utc", "id", "label", "url", "group",
-                         "status", "ms", "error", "region", "severity"])
+                         "status", "ms", "error", "region", "severity",
+                         "health_detail"])
         for r in results:
             w.writerow([r["timestamp_utc"], r["id"], r["label"], r["url"],
                          r["group"], r["status"], r["ms"], r["error"],
-                         r["region"], r["severity"]])
+                         r["region"], r["severity"], r["health_detail"]])
 
     # Print summary
     ok = sum(1 for r in results if r["severity"] == "fast")

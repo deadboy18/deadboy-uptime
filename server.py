@@ -43,6 +43,9 @@ TARGETS = [
     {"id":"finance","label":"Finance","url":"https://finance.sentec.io","group":"Sentec","desc":"Financial system"},
     {"id":"ems","label":"EMS","url":"https://ems.sentec.io","group":"Sentec","desc":"Employee Management"},
     {"id":"ems-emp","label":"EMS Employees","url":"https://employees.ems.sentec.io","group":"Sentec","desc":"Employee portal"},
+    # ── Sentec Deep Health ──
+    {"id":"pms-health","label":"PMS Web Health","url":"https://apse1.pms.sentec.io/health.txt","group":"Sentec","desc":"PMS web server health probe","health":"txt"},
+    {"id":"pms-api-health","label":"PMS API Health","url":"https://apse1.api.pms.sentec.io/health/","group":"Sentec","desc":"PMS API subsystem health — cache & DB status","health":"json"},
     # ── eInvoice Prod ──
     {"id":"einv-api","label":"e-Invoice API","url":"https://api.myinvois.hasil.gov.my","group":"eInvoice Prod","desc":"LHDN e-Invoice API"},
     {"id":"einv-portal","label":"e-Invoice Portal","url":"https://myinvois.hasil.gov.my","group":"eInvoice Prod","desc":"LHDN e-Invoice web portal"},
@@ -84,7 +87,7 @@ TARGETS = [
     {"id":"gl-cf","label":"Cloudflare","url":"https://www.cloudflare.com","group":"Global","desc":"CDN/DNS baseline"},
 ]
 
-DNS_PROBES = ["pms.sentec.io", "google.com", "api.myinvois.hasil.gov.my", "portal.whizcity.my"]
+DNS_PROBES = ["pms.sentec.io", "apse1.api.pms.sentec.io", "google.com", "api.myinvois.hasil.gov.my", "portal.whizcity.my"]
 
 ssl_ctx = ssl.create_default_context()
 ssl_ctx.check_hostname = False
@@ -109,12 +112,15 @@ def ensure_log():
         with open(LOG, "w", newline="") as f:
             csv.writer(f).writerow([
                 "timestamp_utc", "local_time", "id", "label", "url",
-                "group", "status", "ms", "error", "region", "severity"
+                "group", "status", "ms", "error", "region", "severity",
+                "health_detail"
             ])
 
 
 def log_row(target, result):
     sev = severity(result["response_time_ms"], result.get("error"))
+    hd = result.get("health_detail")
+    hd_str = json.dumps(hd) if hd else ""
     with open(LOG, "a", newline="") as f:
         csv.writer(f).writerow([
             datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -122,7 +128,7 @@ def log_row(target, result):
             target["id"], target["label"], target["url"],
             target.get("group", ""),
             result["status_code"], result["response_time_ms"],
-            result.get("error") or "", REGION, sev,
+            result.get("error") or "", REGION, sev, hd_str,
         ])
 
 
@@ -152,8 +158,59 @@ def check_dns(domain):
         return {"resolve_ms": round((time.time() - start) * 1000), "error": str(e)[:120]}
 
 
+def check_health(target):
+    """Extended health check that parses response body for subsystem status."""
+    health_type = target.get("health")
+    if not health_type:
+        return check_http(target["url"])
+
+    url = target["url"]
+    start = time.time()
+    try:
+        req = urllib.request.Request(url, method="GET")
+        req.add_header("User-Agent", "KeshMonitor/5")
+        with urllib.request.urlopen(req, timeout=12, context=ssl_ctx) as resp:
+            body = resp.read(4096).decode("utf-8", errors="replace")
+            ms = round((time.time() - start) * 1000)
+            result = {"status_code": resp.status, "response_time_ms": ms, "error": None}
+
+            if health_type == "txt":
+                # health.txt — body should contain "ok"
+                is_ok = "ok" in body.strip().lower()
+                result["health_detail"] = {"web": "✅" if is_ok else "❌"}
+                if not is_ok:
+                    result["error"] = f"health.txt returned: {body.strip()[:60]}"
+
+            elif health_type == "json":
+                # JSON health — parse subsystem statuses
+                try:
+                    data = json.loads(body)
+                    detail = {}
+                    all_ok = True
+                    for key, val in data.items():
+                        ok = val.strip() == "✅" if isinstance(val, str) else bool(val)
+                        detail[key] = "✅" if ok else "❌"
+                        if not ok:
+                            all_ok = False
+                    result["health_detail"] = detail
+                    if not all_ok:
+                        failed = [k for k, v in detail.items() if v == "❌"]
+                        result["error"] = f"Degraded: {', '.join(failed)}"
+                except (json.JSONDecodeError, ValueError):
+                    result["health_detail"] = {"parse": "❌"}
+                    result["error"] = f"Invalid health JSON: {body.strip()[:60]}"
+
+            return result
+    except urllib.error.HTTPError as e:
+        return {"status_code": e.code, "response_time_ms": round((time.time() - start) * 1000), "error": None}
+    except urllib.error.URLError as e:
+        return {"status_code": 0, "response_time_ms": round((time.time() - start) * 1000), "error": str(e.reason)[:120]}
+    except Exception as e:
+        return {"status_code": 0, "response_time_ms": round((time.time() - start) * 1000), "error": str(e)[:120]}
+
+
 def check_one(target):
-    result = check_http(target["url"])
+    result = check_health(target)
     result["timestamp"] = int(time.time() * 1000)
     result["region"] = REGION
     log_row(target, result)

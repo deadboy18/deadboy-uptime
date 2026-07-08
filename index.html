@@ -179,7 +179,7 @@ a{color:var(--blue);text-decoration:none}
 
 /* Expandable detail */
 .ep-detail{max-height:0;overflow:hidden;transition:max-height .35s ease}
-.ep.open .ep-detail{max-height:280px;border-top:1px solid var(--bd)}
+.ep.open .ep-detail{max-height:380px;border-top:1px solid var(--bd)}
 .ep-detail-inner{padding:16px 22px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
 .spark-wrap{flex:1;min-width:140px}
 .spark-title{font-size:10px;color:var(--mt);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
@@ -193,6 +193,14 @@ a{color:var(--blue);text-decoration:none}
 .pill:hover::after,.pill.show-tip::after{opacity:1}
 .ep-expand{font-size:11px;color:var(--mt);text-align:center;padding:4px;transition:color .15s;letter-spacing:.03em}
 .ep.open .ep-expand{color:var(--t2)}
+
+/* ── Health subsystem detail ── */
+.health-detail{display:flex;flex-wrap:wrap;gap:6px;width:100%;margin-top:8px;padding-top:10px;border-top:1px solid var(--bd)}
+.health-detail-title{font-size:10px;color:var(--mt);text-transform:uppercase;letter-spacing:.05em;width:100%;margin-bottom:2px}
+.health-pill{font-size:11px;font-family:var(--mono);padding:5px 12px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--bd);background:var(--sf2);transition:all .15s}
+.health-pill.ok{border-color:var(--green);background:var(--green-bg);color:var(--green)}
+.health-pill.bad{border-color:var(--red);background:var(--red-bg);color:var(--red);animation:pulse-amber 2s infinite}
+.health-pill-key{font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.03em}
 
 /* ── Legend ── */
 .legend{margin:20px;padding:20px 24px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--radius);box-shadow:var(--sh)}
@@ -594,6 +602,9 @@ const TARGETS_FALLBACK = [
 {id:"finance",label:"Finance",url:"https://finance.sentec.io",group:"Sentec",desc:"Financial system"},
 {id:"ems",label:"EMS",url:"https://ems.sentec.io",group:"Sentec",desc:"Employee Management"},
 {id:"ems-emp",label:"EMS Employees",url:"https://employees.ems.sentec.io",group:"Sentec",desc:"Employee portal"},
+// ── Sentec Deep Health ──
+{id:"pms-health",label:"PMS Web Health",url:"https://apse1.pms.sentec.io/health.txt",group:"Sentec",desc:"PMS web server health probe (expects 'ok')",health:"txt"},
+{id:"pms-api-health",label:"PMS API Health",url:"https://apse1.api.pms.sentec.io/health/",group:"Sentec",desc:"PMS API subsystem health — cache & DB status",health:"json"},
 {id:"einv-api",label:"e-Invoice API",url:"https://api.myinvois.hasil.gov.my",group:"eInvoice Prod",desc:"LHDN e-Invoice API (production)"},
 {id:"einv-portal",label:"e-Invoice Portal",url:"https://myinvois.hasil.gov.my",group:"eInvoice Prod",desc:"LHDN e-Invoice web portal"},
 {id:"einv-id",label:"e-Invoice Identity",url:"https://identity.myinvois.hasil.gov.my",group:"eInvoice Prod",desc:"LHDN identity/auth server"},
@@ -710,6 +721,42 @@ function cardClass(sev) {
   return '';
 }
 
+// ── Health detail rendering ──
+const HEALTH_KEY_LABELS = {
+  web: 'Web Server',
+  cache_put: 'Cache Write',
+  cache_get: 'Cache Read',
+  db_read_connection: 'DB Read',
+  db_write_connection: 'DB Write',
+  parse: 'Response Parse',
+};
+
+function inlineHealthSummary(target, lastCheck) {
+  if (!target.health || !lastCheck) return '';
+  const hd = lastCheck.health_detail || lastCheck._hd;
+  if (!hd || typeof hd !== 'object') return '';
+  const keys = Object.keys(hd);
+  const okCount = Object.values(hd).filter(v => v === '✅').length;
+  if (okCount === keys.length) return `<span style="color:var(--green);font-size:11px;font-family:var(--mono)">· ${okCount}/${keys.length} subsystems ✅</span>`;
+  return `<span style="color:var(--red);font-size:11px;font-family:var(--mono);font-weight:700">· ${okCount}/${keys.length} subsystems OK</span>`;
+}
+
+function renderHealthDetail(target, lastCheck) {
+  if (!target.health || !lastCheck) return '';
+  const hd = lastCheck.health_detail || lastCheck._hd;
+  if (!hd || typeof hd !== 'object') return '';
+  let pills = '';
+  for (const [key, val] of Object.entries(hd)) {
+    const ok = val === '✅';
+    const label = HEALTH_KEY_LABELS[key] || key.replace(/_/g, ' ');
+    pills += `<span class="health-pill ${ok ? 'ok' : 'bad'}">${val} <span class="health-pill-key">${label}</span></span>`;
+  }
+  return `<div class="health-detail">
+    <div class="health-detail-title">🔬 Subsystem Health</div>
+    ${pills}
+  </div>`;
+}
+
 // ── Formatters ──
 function fMs(ms) {
   if (ms == null) return '—';
@@ -763,13 +810,18 @@ async function loadCSVHistory() {
       if (!id || isNaN(ms)) continue;
 
       if (!H[id]) H[id] = [];
-      H[id].push({
+      const entry = {
         status_code: status,
         response_time_ms: ms,
         error: err || null,
         timestamp: new Date(ts).getTime(),
         region: cols[idx.region] || 'GitHub-Actions',
-      });
+      };
+      // Parse health_detail from CSV if present
+      if (idx.health_detail != null && cols[idx.health_detail]) {
+        try { entry._hd = JSON.parse(cols[idx.health_detail]); } catch {}
+      }
+      H[id].push(entry);
       loaded++;
     }
 
@@ -912,7 +964,10 @@ async function run() {
           const newSev = severity(d.checks[t.id].response_time_ms, d.checks[t.id].error);
           if (isCriticalTarget(t) && oldSev !== 'critical' && newSev === 'critical') playAlertSound();
 
-          H[t.id].push(d.checks[t.id]);
+          // preserve health_detail from server response
+          const entry = d.checks[t.id];
+          if (entry.health_detail) entry._hd = entry.health_detail;
+          H[t.id].push(entry);
           if (H[t.id].length > MAX_HIST) H[t.id] = H[t.id].slice(-MAX_HIST);
         }
       }
@@ -949,11 +1004,13 @@ async function run() {
 // ── CSV export ──
 function dlCSV() {
   if (serverMode) { window.open('/api/download-log'); return; }
-  let r = 'timestamp,id,label,url,group,status_code,ms,error,region,severity\n';
+  let r = 'timestamp,id,label,url,group,status_code,ms,error,region,severity,health_detail\n';
   for (const t of T) {
     for (const c of (H[t.id] || [])) {
       const sev = severity(c.response_time_ms, c.error);
-      r += `${new Date(c.timestamp).toISOString()},${t.id},"${t.label}",${t.url},${t.group||''},${c.status_code||0},${c.response_time_ms},${(c.error||'').replace(/,/g,';')},${c.region||region},${sev}\n`;
+      const hd = c.health_detail || c._hd;
+      const hdStr = hd ? JSON.stringify(hd).replace(/,/g, ';') : '';
+      r += `${new Date(c.timestamp).toISOString()},${t.id},"${t.label}",${t.url},${t.group||''},${c.status_code||0},${c.response_time_ms},${(c.error||'').replace(/,/g,';')},${c.region||region},${sev},${hdStr}\n`;
     }
   }
   const a = document.createElement('a');
@@ -1159,6 +1216,7 @@ function renderContent() {
           <div class="ep-status-line">
             <span class="friendly" style="color:${color}">${friendlyStatus(sev)}</span>
             ${t.desc && !isSimple ? `<span>· ${t.desc}</span>` : ''}
+            ${inlineHealthSummary(t, last)}
           </div>
           ${showUrl ? `<div class="ep-url">${t.url}</div>` : ''}
           <div class="ub-w">
@@ -1179,6 +1237,7 @@ function renderContent() {
             `<span class="pill" tabindex="0" data-tip="95th percentile — 95% of checks are faster than this" onclick="tipTap(event)"><span class="pill-icon">📊</span> p95 <b>${fMs(p95(vals))}</b></span>` +
             `<span class="pill" tabindex="0" data-tip="Total number of checks performed" onclick="tipTap(event)"><span class="pill-icon">🔢</span> checks <b>${h.length}</b></span>` :
             '<span class="pill">Collecting data…</span>'}</div>
+          ${renderHealthDetail(t, last)}
         </div></div>
       </div>`;
     }
